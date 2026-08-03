@@ -1,0 +1,43 @@
+name: _edot_flutter_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+# Pub workspace. Melos 8 drives task running on top of this.
+workspace:
+  - packages/inoxth_edot_flutter
+  - packages/inoxth_edot_flutter/example
+  - packages/inoxth_edot_flutter_dio
+  - packages/edot_collector_harness
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  melos: ^8.0.0
+
+melos:
+  scripts:
+    analyze:
+      description: Static analysis across every package.
+      exec:
+        command: dart analyze --fatal-infos .
+        concurrency: 1
+
+    test:
+      description: Dart test tier (Seam 1). No native code, no collector.
+      exec:
+        command: flutter test
+        concurrency: 1
+      packageFilters:
+        dirExists: test
+
+    format-check:
+      description: Verify formatting without writing.
+      run: dart format --output=none --set-exit-if-changed .
+
+    verify:
+      description: Everything CI runs on the Dart tier.
+      steps:
+        - format-check
+        - analyze
+        - test

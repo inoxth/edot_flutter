@@ -1,0 +1,41 @@
+name: inoxth_edot_flutter
+description: >-
+  Unofficial Flutter plugin for the Elastic Distribution of OpenTelemetry (EDOT)
+  mobile Agents. Not affiliated with or endorsed by Elastic N.V.
+version: 0.0.1
+repository: https://gitlab.inox.co.th/nonth/edot_flutter
+issue_tracker: https://gitlab.inox.co.th/nonth/edot_flutter/-/issues
+
+# Publication is deferred while the repository is internal-only. Set explicitly so
+# a publish cannot happen by accident before that decision is revisited.
+publish_to: none
+
+resolution: workspace
+
+environment:
+  # Swift Package Manager is default-on from Flutter 3.44, and the iOS platform
+  # side ships no podspec (ADR-0007), so this floor is load-bearing.
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The package:http wrapper lives in this package (ADR-0010). package:http is
+  # published by dart.dev and small, so depending on it imposes no real cost.
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  plugin:
+    # Android and iOS only: no EDOT Agent exists for web or desktop.
+    platforms:
+      android:
+        package: co.inoxth.inoxth_edot_flutter
+        pluginClass: InoxthEdotFlutterPlugin
+      ios:
+        pluginClass: InoxthEdotFlutterPlugin

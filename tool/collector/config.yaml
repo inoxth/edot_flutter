@@ -1,0 +1,43 @@
+# Collector for Seam 2. Accepts OTLP over HTTP and gRPC and writes every signal
+# to a file the integration tests read back.
+#
+# The Plugin's Collector Host exclusion (ADR-0006) is keyed off the host in the
+# configured server URL, so tests must point the Plugin at this collector's host.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+exporters:
+  # One JSON object per line, each an OTLP export request.
+  file:
+    path: /output/telemetry.jsonl
+    flush_interval: 1s
+
+processors:
+  batch:
+    # Keep this small: tests call flush() and then read, so a long timeout would
+    # reintroduce exactly the latency flush() exists to remove.
+    timeout: 200ms
+
+service:
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [file]

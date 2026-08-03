@@ -1,0 +1,28 @@
+name: inoxth_edot_flutter_dio
+description: >-
+  Dio integration for inoxth_edot_flutter. Ships separately because Dart has no
+  optional dependencies, so bundling it would impose Dio's version constraint on
+  every consumer (ADR-0010).
+version: 0.0.1
+repository: https://gitlab.inox.co.th/nonth/edot_flutter
+issue_tracker: https://gitlab.inox.co.th/nonth/edot_flutter/-/issues
+
+# Deferred alongside the core package.
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  dio: ^5.4.0
+  flutter:
+    sdk: flutter
+  inoxth_edot_flutter: ^0.0.1
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter

@@ -1,0 +1,11 @@
+services:
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.115.1
+    command: ["--config=/etc/collector/config.yaml"]
+    volumes:
+      - ./config.yaml:/etc/collector/config.yaml:ro
+      - ${EDOT_COLLECTOR_OUTPUT_DIR:-./output}:/output
+    ports:
+      # 10.0.2.2 reaches the host from an Android emulator; iOS simulators use localhost.
+      - "4318:4318"
+      - "4317:4317"

@@ -1,0 +1,60 @@
+# CI for inoxth_edot_flutter.
+#
+# Only the Dart tier (Seam 1) and the Android build run here. Seam 2 needs a
+# collector plus an emulator or device, and iOS needs a macOS runner — see the
+# `.seam2` template below, which is deliberately manual rather than silently
+# absent, so an untested tier stays visible.
+
+stages:
+  - verify
+  - build
+
+default:
+  image: ghcr.io/cirruslabs/flutter:3.44.0
+  cache:
+    key: "$CI_COMMIT_REF_SLUG"
+    paths:
+      - .dart_tool/
+      - .pub-cache/
+  before_script:
+    - export PUB_CACHE="$CI_PROJECT_DIR/.pub-cache"
+    - export PATH="$PATH:$PUB_CACHE/bin"
+    - dart pub global activate melos ^8.0.0
+    - flutter pub get
+
+# Format, analyse and the Dart test tier across every package.
+verify:
+  stage: verify
+  script:
+    - melos run verify
+
+# Proves the pinned agent-sdk resolves and the Kotlin compiles against it at
+# minSdk 24. Does not need an emulator.
+build:android:
+  stage: build
+  script:
+    - cd packages/inoxth_edot_flutter/example
+    - flutter build apk --debug
+
+# iOS build requires a macOS runner with Xcode. Enable by assigning a macOS
+# runner and removing `when: manual`.
+build:ios:
+  stage: build
+  tags:
+    - macos
+  script:
+    - cd packages/inoxth_edot_flutter/example
+    - flutter build ios --debug --no-codesign
+  when: manual
+  allow_failure: true
+
+# Seam 2. Needs Docker for the collector and a device or emulator for the app.
+# Manual until runners provide both; keeping the job present makes the gap
+# auditable instead of forgotten.
+.seam2:
+  stage: build
+  script:
+    - docker compose -f tool/collector/docker-compose.yaml up -d --wait
+    - cd packages/inoxth_edot_flutter/example
+    - flutter test integration_test
+  when: manual

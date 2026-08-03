@@ -1,0 +1,44 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Pub workspace: the root lockfile is the single source of truth, and it is
+# committed so CI resolves the same versions the pins in ADR-0001 were verified
+# against. Per-package lockfiles are stray files under a workspace.
+packages/*/pubspec.lock
+packages/*/*/pubspec.lock
+
+# Melos
+.melos_tool/
+
+# IDE / tooling
+*.iml
+.idea/
+.vscode/
+
+# Android
+local.properties
+*.jks
+.gradle/
+captures/
+
+# iOS / macOS
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
+**/xcuserdata/
+**/DerivedData/
+Flutter/ephemeral/
+**/Flutter/ephemeral/
+.symlinks/
+**/.symlinks/
+
+# Seam 2 collector output
+tool/collector/output/
+
+.DS_Store
