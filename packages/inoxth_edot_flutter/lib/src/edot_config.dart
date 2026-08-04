@@ -187,9 +187,9 @@ class EdotConfig {
 /// Deliberately a function in `src/` rather than a method on [EdotConfig]: the
 /// channel encoding is an internal contract with the two native implementations,
 /// not something consumers should call or depend on.
-/// [EdotConfig.collectorHost] is deliberately absent: the exclusion it exists
-/// for (ADR-0006) is applied by the Dart-side network instrumentation, so it
-/// never needs to cross to native.
+/// [EdotConfig.collectorHost] is sent rather than re-derived natively, so both
+/// layers apply ADR-0006 to the same value. `Uri.host` and `URL.host` do not
+/// agree on case, and a host the two sides disagree about is a self-tracing leak.
 Map<String, Object?> encodeConfig(EdotConfig config) {
   // One switch rather than one per wire field, so the sealed type is matched
   // exhaustively in a single place.
@@ -204,6 +204,7 @@ Map<String, Object?> encodeConfig(EdotConfig config) {
     'serviceVersion': config.serviceVersion,
     'deploymentEnvironment': config.deploymentEnvironment,
     'serverUrl': config.serverUrl,
+    'collectorHost': config.collectorHost,
     'exportProtocol': config.exportProtocol.name,
     'sessionSamplingRate': config.sessionSamplingRate,
     'debug': config.debug,

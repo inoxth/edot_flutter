@@ -37,7 +37,13 @@ let package = Package(
                 .product(name: "FlutterFramework", package: "FlutterFramework"),
                 .product(name: "ElasticApm", package: "apm-agent-ios"),
                 .product(name: "OpenTelemetryApi", package: "opentelemetry-swift"),
-                .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift")
+                .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift"),
+                // The Agent's own URLSession instrumentation is on/off only, so
+                // ADR-0006 replaces it with a filtered equivalent built here.
+                .product(
+                    name: "URLSessionInstrumentation",
+                    package: "opentelemetry-swift"
+                )
             ],
             resources: [
                 // Uncomment once the Plugin uses a required-reason API. It does not yet.

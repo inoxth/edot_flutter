@@ -2,6 +2,7 @@ import ElasticApm
 import Flutter
 import OpenTelemetryApi
 import OpenTelemetrySdk
+import URLSessionInstrumentation
 import UIKit
 import os
 
@@ -24,6 +25,10 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
 
   /// Runs the blocking part of `flush` off the main thread.
   private let flushQueue = DispatchQueue(label: "co.inoxth.edot.flush")
+
+  /// Replaces the Agent's own network instrumentation (ADR-0006). Held because
+  /// `URLSessionInstrumentation` installs swizzles on init and must outlive it.
+  private var networkInstrumentation: URLSessionInstrumentation?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
@@ -60,7 +65,8 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
           let serviceVersion = args["serviceVersion"] as? String,
           let environment = args["deploymentEnvironment"] as? String,
           let serverUrlString = args["serverUrl"] as? String,
-          let serverUrl = URL(string: serverUrlString)
+          let serverUrl = URL(string: serverUrlString),
+          let collectorHost = args["collectorHost"] as? String
     else {
       result(FlutterError(code: "invalid_config",
                           message: "Missing or malformed configuration arguments.",
@@ -105,10 +111,78 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       builder = builder.withSecretToken(secretToken)
     }
 
-    ElasticApmAgent.start(with: builder.build())
+    // The Agent's built-in URLSession instrumentation is on/off only, and it
+    // traces the Agent's own export because that goes through URLSession.shared.
+    // Turning it off here and installing a filtered equivalent below is what
+    // ADR-0006 calls for — disabling it outright would leave native-origin
+    // traffic untraced, which is a different blind spot rather than a fix.
+    let instrumentation = InstrumentationConfigBuilder()
+      .withURLSessionInstrumentation(false)
+      .build()
+
+    ElasticApmAgent.start(with: builder.build(), instrumentation)
+    installFilteredNetworkInstrumentation(collectorHost: collectorHost)
+
     started = true
-    log("agent started for service '\(serviceName)'")
+    log("agent started for service '\(serviceName)', excluding host '\(collectorHost)'")
     result(nil)
+  }
+
+  /// Traces native `URLSession` traffic, except to the Collector Host.
+  ///
+  /// Mirrors what the Agent's own instrumentation produces — same span naming and
+  /// same error events — so telemetry is unchanged apart from the exclusion. It
+  /// deliberately omits the Agent's `createdRequest` network-status injection:
+  /// `ElasticSpanProcessor.onStart` already injects those attributes into every
+  /// span, so doing it here too would be redundant.
+  private func installFilteredNetworkInstrumentation(collectorHost: String) {
+    let configuration = URLSessionInstrumentationConfiguration(
+      shouldInstrument: { request in
+        // ADR-0006: host equality and nothing else. No path condition, because
+        // enumerating the Agent's endpoints leaked twice in the React Native SDK
+        // when the list turned out to be incomplete. No port condition, because
+        // the Agent normalises default ports away and comparing them caused the
+        // original miss.
+        //
+        // Lowercased because hosts are case-insensitive and Dart has already
+        // lowercased its side, so a mixed-case server URL must not slip through.
+        request.url?.host?.lowercased() != collectorHost.lowercased()
+      },
+      nameSpan: { request in
+        guard let host = request.url?.host, let method = request.httpMethod else {
+          return nil
+        }
+        return "\(method) \(host)"
+      },
+      receivedResponse: { response, _, span in
+        guard let httpResponse = response as? HTTPURLResponse,
+              (400...599).contains(httpResponse.statusCode)
+        else { return }
+
+        span.addEvent(
+          name: SemanticAttributes.exception.rawValue,
+          attributes: [
+            SemanticAttributes.exceptionType.rawValue:
+              .string("\(httpResponse.statusCode)"),
+            SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
+            SemanticAttributes.exceptionMessage.rawValue:
+              .string(HTTPURLResponse.localizedString(
+                forStatusCode: httpResponse.statusCode)),
+          ])
+      },
+      receivedError: { error, _, _, span in
+        span.addEvent(
+          name: SemanticAttributes.exception.rawValue,
+          attributes: [
+            SemanticAttributes.exceptionType.rawValue:
+              .string(String(describing: type(of: error))),
+            SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
+            SemanticAttributes.exceptionMessage.rawValue:
+              .string(error.localizedDescription),
+          ])
+      })
+
+    networkInstrumentation = URLSessionInstrumentation(configuration: configuration)
   }
 
   private func setResourceAttributes(_ attributes: [String: String]) {

@@ -79,6 +79,16 @@ void main() {
       expect(args['serverUrl'], 'http://localhost:4318');
     });
 
+    test('sends the Collector Host for the self-tracing exclusion', () async {
+      // ADR-0006 needs one agreed host on both sides. Deriving it natively as
+      // well would risk the two disagreeing, and a host they disagree about is
+      // exactly the self-tracing leak the exclusion exists to prevent.
+      await startPlugin();
+
+      final args = calls.single.arguments as Map<Object?, Object?>;
+      expect(args['collectorHost'], 'localhost');
+    });
+
     test(
       'passes the credential through so authentication actually works',
       () async {
