@@ -43,9 +43,90 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     case "initialize": initialize(call, result)
     case "spanStart": spanStart(call, result)
     case "spanEnd": spanEnd(call, result)
+
+    // Four methods rather than one, because this is where the integer/double
+    // distinction would otherwise be lost: Flutter delivers both as NSNumber, and
+    // `as? Int` succeeds on a double just as `as? Double` succeeds on an integer.
+    // The method name is what carries the type, not the value's runtime class.
+    case "spanSetString":
+      withSpan(call, result) { span, args in
+        guard let key = args["key"] as? String,
+              let value = args["value"] as? String else { return }
+        span.setAttribute(key: key, value: value)
+      }
+    case "spanSetInt":
+      withSpan(call, result) { span, args in
+        guard let key = args["key"] as? String,
+              let value = args["value"] as? Int else { return }
+        span.setAttribute(key: key, value: value)
+      }
+    case "spanSetDouble":
+      withSpan(call, result) { span, args in
+        guard let key = args["key"] as? String,
+              let value = args["value"] as? Double else { return }
+        span.setAttribute(key: key, value: value)
+      }
+    case "spanSetBool":
+      withSpan(call, result) { span, args in
+        guard let key = args["key"] as? String,
+              let value = args["value"] as? Bool else { return }
+        span.setAttribute(key: key, value: value)
+      }
+
+    case "spanRecordException":
+      withSpan(call, result) { span, args in
+        guard let type = args["type"] as? String,
+              let message = args["message"] as? String else { return }
+        Self.addExceptionEvent(
+          to: span,
+          type: type,
+          message: message,
+          stacktrace: args["stacktrace"] as? String)
+      }
+    case "spanMarkFailed":
+      withSpan(call, result) { span, args in
+        // OpenTelemetry Swift's Status carries a non-optional description, so an
+        // absent one becomes empty rather than being omitted.
+        span.status = .error(description: args["description"] as? String ?? "")
+      }
+
     case "flush": flush(result)
     default: result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Resolves the Shadow Span a call refers to and hands it to [action].
+  ///
+  /// Never replies with an error: none of these calls is awaited in Dart
+  /// (ADR-0002), so an error would surface as an unhandled channel failure
+  /// detached from the call site rather than at it.
+  private func withSpan(
+    _ call: FlutterMethodCall,
+    _ result: @escaping FlutterResult,
+    _ action: (Span, [String: Any]) -> Void
+  ) {
+    guard let args = call.arguments as? [String: Any],
+          let shadowId = args["shadowId"] as? String
+    else {
+      log("\(call.method) with malformed arguments; dropped")
+      result(nil)
+      return
+    }
+
+    spansLock.lock()
+    let span = spans[shadowId]
+    spansLock.unlock()
+
+    guard let span else {
+      // Ordinarily an ended span, which Dart already guards against. Reaching
+      // here means the two sides disagree about the span's lifetime.
+      log("\(call.method) for unknown shadow id '\(shadowId)'; dropped")
+      result(nil)
+      return
+    }
+
+    action(span, args)
+    result(nil)
   }
 
   // MARK: - Lifecycle
@@ -172,32 +253,49 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
           to: span,
           type: "\(httpResponse.statusCode)",
           message: HTTPURLResponse.localizedString(
-            forStatusCode: httpResponse.statusCode))
+            forStatusCode: httpResponse.statusCode),
+          escaped: false)
       },
       receivedError: { error, _, _, span in
         Self.addExceptionEvent(
           to: span,
           type: String(describing: type(of: error)),
-          message: error.localizedDescription)
+          message: error.localizedDescription,
+          escaped: false)
       })
 
     networkInstrumentation = URLSessionInstrumentation(configuration: configuration)
   }
 
-  /// Records a failed request on its span, matching what the Agent's own
-  /// instrumentation emits so the replacement is indistinguishable.
+  /// Records an exception event on a span.
+  ///
+  /// [escaped] and [stacktrace] are omitted when nil rather than sent empty, so
+  /// each caller emits only what it actually knows. The network instrumentation
+  /// passes `escaped: false` for parity with the Agent's own instrumentation;
+  /// ADR-0003's error vocabulary does not include that attribute, so a recorded
+  /// exception leaves it out and sends a stack trace instead.
   private static func addExceptionEvent(
     to span: Span,
     type: String,
-    message: String
+    message: String,
+    stacktrace: String? = nil,
+    escaped: Bool? = nil
   ) {
+    var attributes: [String: AttributeValue] = [
+      SemanticAttributes.exceptionType.rawValue: .string(type),
+      SemanticAttributes.exceptionMessage.rawValue: .string(message),
+    ]
+    if let stacktrace {
+      attributes[SemanticAttributes.exceptionStacktrace.rawValue] =
+        .string(stacktrace)
+    }
+    if let escaped {
+      attributes[SemanticAttributes.exceptionEscaped.rawValue] = .bool(escaped)
+    }
+
     span.addEvent(
       name: SemanticAttributes.exception.rawValue,
-      attributes: [
-        SemanticAttributes.exceptionType.rawValue: .string(type),
-        SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
-        SemanticAttributes.exceptionMessage.rawValue: .string(message),
-      ])
+      attributes: attributes)
   }
 
   private func setResourceAttributes(_ attributes: [String: String]) {

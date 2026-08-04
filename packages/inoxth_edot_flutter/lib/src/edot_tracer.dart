@@ -91,6 +91,71 @@ class EdotSpan {
   /// Whether [end] has already run.
   bool get isEnded => _ended;
 
+  /// Attaches a string attribute.
+  ///
+  /// Keys the Plugin's own instrumentation emits come from the Elastic Mobile
+  /// Attribute Set (ADR-0003), not the stable OpenTelemetry conventions. Callers
+  /// setting their own keys are unconstrained.
+  void setString(String key, String value) =>
+      _enrich('spanSetString', key, value);
+
+  /// Attaches an integer attribute.
+  ///
+  /// Separate from [setDouble] because the two cannot be told apart on iOS once
+  /// they have crossed the channel: Flutter delivers numbers as `NSNumber`, which
+  /// casts happily to either. An integer that arrived as a double would stop being
+  /// aggregatable, which is most of what a numeric attribute is for.
+  void setInt(String key, int value) => _enrich('spanSetInt', key, value);
+
+  /// Attaches a floating-point attribute. See [setInt] for why these are separate.
+  void setDouble(String key, double value) =>
+      _enrich('spanSetDouble', key, value);
+
+  /// Attaches a boolean attribute.
+  void setBool(String key, bool value) => _enrich('spanSetBool', key, value);
+
+  void _enrich(String method, String key, Object value) {
+    if (key.trim().isEmpty) {
+      throw ArgumentError.value(key, 'key', 'attribute key must not be blank');
+    }
+    // The Agent dropped this span from its registry when it ended, so the only
+    // thing sending now would achieve is a warning on the other side.
+    if (_ended) return;
+
+    sendOneWay(method, <String, Object?>{
+      'shadowId': shadowId,
+      'key': key,
+      'value': value,
+    });
+  }
+
+  /// Records [error] against the span as an exception event.
+  ///
+  /// Does **not** fail the span. OpenTelemetry keeps the two separate, and so does
+  /// this: an exception can be recorded on an operation that recovered and
+  /// succeeded. Call [markFailed] when the operation itself failed.
+  void recordException(Object error, {StackTrace? stackTrace}) {
+    if (_ended) return;
+
+    sendOneWay('spanRecordException', <String, Object?>{
+      'shadowId': shadowId,
+      'type': error.runtimeType.toString(),
+      'message': error.toString(),
+      'stacktrace': stackTrace?.toString(),
+    });
+  }
+
+  /// Marks the span failed, so the failure is visible on the operation itself
+  /// rather than only in an event attached to it.
+  void markFailed([String? description]) {
+    if (_ended) return;
+
+    sendOneWay('spanMarkFailed', <String, Object?>{
+      'shadowId': shadowId,
+      'description': description,
+    });
+  }
+
   /// Ends the span.
   ///
   /// The end timestamp is the anchored start plus monotonic elapsed time, never a

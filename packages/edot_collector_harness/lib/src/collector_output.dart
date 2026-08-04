@@ -100,6 +100,7 @@ class CollectorOutput {
               startNanos: _int(span['startTimeUnixNano']) ?? 0,
               endNanos: _int(span['endTimeUnixNano']) ?? 0,
               attributes: _attributes(span['attributes']),
+              events: _events(span['events']),
               resource: resource,
               scopeName: scopeName,
               statusCode: _int(status['code'])?.toInt() ?? 0,
@@ -147,6 +148,15 @@ class CollectorOutput {
     }
     return decoded;
   }
+
+  static List<ExportedSpanEvent> _events(Object? raw) => [
+    for (final event in _asList(raw))
+      ExportedSpanEvent(
+        name: event['name'] as String? ?? '',
+        timeNanos: _int(event['timeUnixNano']) ?? 0,
+        attributes: _attributes(event['attributes']),
+      ),
+  ];
 
   /// Decodes an OTLP AnyValue.
   ///
@@ -202,6 +212,7 @@ class ExportedSpan {
     required this.startNanos,
     required this.endNanos,
     required this.attributes,
+    required this.events,
     required this.resource,
     required this.scopeName,
     required this.statusCode,
@@ -219,6 +230,9 @@ class ExportedSpan {
   final int endNanos;
   final Map<String, Object?> attributes;
 
+  /// Events recorded on the span, in export order.
+  final List<ExportedSpanEvent> events;
+
   /// Resource attributes of the export this span arrived in.
   final Map<String, Object?> resource;
   final String? scopeName;
@@ -232,10 +246,41 @@ class ExportedSpan {
   /// OTLP status code 2 is ERROR.
   bool get isError => statusCode == 2;
 
+  /// The single event named [name], or null if absent.
+  ///
+  /// Throws [StateError] when several match, because an assertion written against
+  /// "the" event would otherwise silently pick one and pass for the wrong reason.
+  ExportedSpanEvent? eventNamed(String name) {
+    final matches = events.where((event) => event.name == name).toList();
+    if (matches.length > 1) {
+      throw StateError(
+        'Span "$this" has ${matches.length} events named "$name". '
+        'Assert on `events` directly.',
+      );
+    }
+    return matches.isEmpty ? null : matches.single;
+  }
+
   @override
   String toString() =>
       'ExportedSpan($name, kind: ${kind.name}, '
       'duration: $duration, attributes: $attributes)';
+}
+
+/// An event recorded on a span, such as a recorded exception.
+class ExportedSpanEvent {
+  ExportedSpanEvent({
+    required this.name,
+    required this.timeNanos,
+    required this.attributes,
+  });
+
+  final String name;
+  final int timeNanos;
+  final Map<String, Object?> attributes;
+
+  @override
+  String toString() => 'ExportedSpanEvent($name, attributes: $attributes)';
 }
 
 /// A log record as it arrived at the collector.

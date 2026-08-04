@@ -16,6 +16,7 @@ import io.flutter.plugin.common.MethodChannel.Result
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.sdk.resources.Resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -62,8 +63,99 @@ class InoxthEdotFlutterPlugin :
             "initialize" -> initialize(call, result)
             "spanStart" -> spanStart(call, result)
             "spanEnd" -> spanEnd(call, result)
+
+            // Four methods rather than one. Android could tell a Long from a
+            // Double, but iOS cannot — Flutter delivers both as NSNumber there —
+            // and the channel protocol is shared, so the type travels in the
+            // method name on both platforms.
+            "spanSetString" ->
+                withSpan(call, result) { span, key ->
+                    span.setAttribute(AttributeKey.stringKey(key), call.requireString("value"))
+                }
+
+            "spanSetInt" ->
+                withSpan(call, result) { span, key ->
+                    span.setAttribute(AttributeKey.longKey(key), call.requireLong("value"))
+                }
+
+            "spanSetDouble" ->
+                withSpan(call, result) { span, key ->
+                    span.setAttribute(AttributeKey.doubleKey(key), call.requireDouble("value"))
+                }
+
+            "spanSetBool" ->
+                withSpan(call, result) { span, key ->
+                    span.setAttribute(AttributeKey.booleanKey(key), call.requireBoolean("value"))
+                }
+
+            "spanRecordException" -> recordException(call, result)
+            "spanMarkFailed" -> markFailed(call, result)
+
             "flush" -> flush(result)
             else -> result.notImplemented()
+        }
+    }
+
+    /**
+     * Resolves the Shadow Span a call refers to and hands it, with the attribute
+     * key, to [action].
+     *
+     * Never replies with an error: none of these calls is awaited in Dart
+     * (ADR-0002), so an error would surface as an unhandled channel failure
+     * detached from the call site rather than at it.
+     */
+    private fun withSpan(
+        call: MethodCall,
+        result: Result,
+        action: (Span, String) -> Unit
+    ) {
+        val shadowId = call.requireString("shadowId")
+        val span = spans[shadowId]
+
+        if (span == null) {
+            // Ordinarily an ended span, which Dart already guards against.
+            // Reaching here means the two sides disagree about its lifetime.
+            log("${call.method} for unknown shadow id '$shadowId'; dropped")
+            result.success(null)
+            return
+        }
+
+        action(span, call.argument<String>("key") ?: "")
+        result.success(null)
+    }
+
+    private fun recordException(
+        call: MethodCall,
+        result: Result
+    ) {
+        withSpan(call, result) { span, _ ->
+            val attributes =
+                Attributes
+                    .builder()
+                    .put(AttributeKey.stringKey("exception.type"), call.requireString("type"))
+                    .put(AttributeKey.stringKey("exception.message"), call.requireString("message"))
+
+            // Omitted rather than sent empty when Dart had no stack trace, so a
+            // present-but-blank attribute never has to be interpreted.
+            call.argument<String>("stacktrace")?.let {
+                attributes.put(AttributeKey.stringKey("exception.stacktrace"), it)
+            }
+
+            // Deliberately no exception.escaped: ADR-0003's error vocabulary does
+            // not include it, and whether the exception escaped the span is not
+            // something the caller told us.
+            span.addEvent("exception", attributes.build())
+        }
+    }
+
+    private fun markFailed(
+        call: MethodCall,
+        result: Result
+    ) {
+        withSpan(call, result) { span, _ ->
+            // setStatus takes a non-null description, so an absent one becomes
+            // empty rather than being omitted.
+            span.setStatus(StatusCode.ERROR, call.argument<String>("description") ?: "")
         }
     }
 
@@ -261,6 +353,20 @@ class InoxthEdotFlutterPlugin :
             is Int -> raw.toLong()
             else -> throw IllegalArgumentException("Missing or non-numeric argument '$key'")
         }
+
+    /**
+     * Strict about the type, unlike [requireLong] which accepts either integer
+     * width. A Double arriving here as an integer would mean something upstream
+     * narrowed it, which is exactly the loss the typed methods exist to prevent —
+     * so it fails rather than being quietly widened back.
+     */
+    private fun MethodCall.requireDouble(key: String): Double =
+        argument<Any>(key) as? Double
+            ?: throw IllegalArgumentException("Missing or non-double argument '$key'")
+
+    private fun MethodCall.requireBoolean(key: String): Boolean =
+        argument<Any>(key) as? Boolean
+            ?: throw IllegalArgumentException("Missing or non-boolean argument '$key'")
 
     private companion object {
         const val CHANNEL_NAME = "inoxth_edot_flutter"
