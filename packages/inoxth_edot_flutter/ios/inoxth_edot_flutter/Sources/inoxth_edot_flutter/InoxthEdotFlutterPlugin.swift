@@ -121,6 +121,15 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       .build()
 
     ElasticApmAgent.start(with: builder.build(), instrumentation)
+
+    // Must follow start, not precede it: URLSessionInstrumentation resolves its
+    // tracer once at init, and before start that resolves to a provider the Agent
+    // has not registered yet, so every span would go nowhere.
+    //
+    // The cost is a gap — anything requested during start is traced by neither the
+    // Agent's instrumentation nor ours. In practice that is the Agent's own first
+    // central-config poll, which is scheduled immediately and which we would
+    // exclude anyway. Application traffic in that window would be missed.
     installFilteredNetworkInstrumentation(collectorHost: collectorHost)
 
     started = true
@@ -159,30 +168,36 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
               (400...599).contains(httpResponse.statusCode)
         else { return }
 
-        span.addEvent(
-          name: SemanticAttributes.exception.rawValue,
-          attributes: [
-            SemanticAttributes.exceptionType.rawValue:
-              .string("\(httpResponse.statusCode)"),
-            SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
-            SemanticAttributes.exceptionMessage.rawValue:
-              .string(HTTPURLResponse.localizedString(
-                forStatusCode: httpResponse.statusCode)),
-          ])
+        Self.addExceptionEvent(
+          to: span,
+          type: "\(httpResponse.statusCode)",
+          message: HTTPURLResponse.localizedString(
+            forStatusCode: httpResponse.statusCode))
       },
       receivedError: { error, _, _, span in
-        span.addEvent(
-          name: SemanticAttributes.exception.rawValue,
-          attributes: [
-            SemanticAttributes.exceptionType.rawValue:
-              .string(String(describing: type(of: error))),
-            SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
-            SemanticAttributes.exceptionMessage.rawValue:
-              .string(error.localizedDescription),
-          ])
+        Self.addExceptionEvent(
+          to: span,
+          type: String(describing: type(of: error)),
+          message: error.localizedDescription)
       })
 
     networkInstrumentation = URLSessionInstrumentation(configuration: configuration)
+  }
+
+  /// Records a failed request on its span, matching what the Agent's own
+  /// instrumentation emits so the replacement is indistinguishable.
+  private static func addExceptionEvent(
+    to span: Span,
+    type: String,
+    message: String
+  ) {
+    span.addEvent(
+      name: SemanticAttributes.exception.rawValue,
+      attributes: [
+        SemanticAttributes.exceptionType.rawValue: .string(type),
+        SemanticAttributes.exceptionEscaped.rawValue: .bool(false),
+        SemanticAttributes.exceptionMessage.rawValue: .string(message),
+      ])
   }
 
   private func setResourceAttributes(_ attributes: [String: String]) {

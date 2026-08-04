@@ -18,13 +18,7 @@ const _probeChannel = MethodChannel(
   'inoxth_edot_flutter_example/native_request',
 );
 
-/// Long enough to cover two of the Agent's central-configuration polls, whose
-/// default interval is 60s.
-///
-/// The Collector Host exclusion has to hold for that polling as much as for
-/// signal export, and a shorter window would assert its absence without the
-/// polling ever having been attempted (ADR-0006).
-const _iosPersistenceUploadWindow = Duration(seconds: 80);
+const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

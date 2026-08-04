@@ -33,6 +33,19 @@ const Map<String, bool> probeRequests = <String, bool>{
   'http://$collectorHost:4318/definitely/not/an/otlp/path': false,
   // Collector Host, different port — exclusion must not compare ports.
   'http://$collectorHost:4317/': false,
+  // The Agent's central-configuration path, reproduced exactly.
+  //
+  // Probed rather than waited for. The Agent polls this itself, but on a 60s
+  // timer whose first tick lands before the replacement instrumentation is
+  // installed — so asserting on the Agent's own poll would pass whether or not
+  // the exclusion works, and would keep passing if a future Agent changed the
+  // interval. Issuing the same request from the probe makes the assertion
+  // deterministic: this request definitely happened, and no span may result.
+  //
+  // Note the path is not under `/v1/`, which is why ADR-0006 rejects a path
+  // allowlist — this is the request that leaked when one was tried.
+  'http://$collectorHost:4318/config/v1/agents?service.name=edot-flutter-seam2':
+      false,
   // Different host, configured port — must still be traced.
   'http://$aliasHost:4318/': true,
 };
