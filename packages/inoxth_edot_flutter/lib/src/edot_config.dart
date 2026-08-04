@@ -64,7 +64,7 @@ class EdotConfig {
     required this.serviceName,
     required this.serviceVersion,
     required this.deploymentEnvironment,
-    required this.serverUrl,
+    required String serverUrl,
     this.auth = const EdotAuth.none(),
     this.exportProtocol = ExportProtocol.http,
     this.sessionSamplingRate = 1.0,
@@ -73,7 +73,8 @@ class EdotConfig {
     this.android = const EdotAndroidConfig(),
     this.urlSanitizer,
     this.excludedUrls = const [],
-  }) : collectorHost = _validate(
+  }) : serverUrl = _withExplicitPort(serverUrl),
+       collectorHost = _validate(
          serviceName: serviceName,
          serviceVersion: serviceVersion,
          deploymentEnvironment: deploymentEnvironment,
@@ -91,6 +92,14 @@ class EdotConfig {
   final String deploymentEnvironment;
 
   /// OTLP URL telemetry is exported to. Its host becomes [collectorHost].
+  ///
+  /// Always carries an explicit port, added from the scheme when the URL you passed
+  /// wrote none — so `https://apm.example.com` is stored as
+  /// `https://apm.example.com:443`. Without that, the two Agents disagree about
+  /// where to export: the pinned iOS Agent falls back to its own hardcoded 8200
+  /// when the URL string names no port, while Android resolves the scheme default.
+  /// The same configuration would then reach the collector on one platform and
+  /// silently go nowhere on the other.
   final String serverUrl;
 
   final EdotAuth auth;
@@ -172,6 +181,55 @@ class EdotConfig {
     }
 
     return uri.host;
+  }
+
+  /// Writes the scheme's default port into [serverUrl] when it names none.
+  ///
+  /// `Uri` cannot express this: `replace(port: 443)` on an https URL renders nothing,
+  /// because Dart normalises a scheme-default port away — the very normalisation that
+  /// lets the two platforms disagree. So the port is inserted into the string.
+  ///
+  /// Idempotent, and a URL that names a port already is returned untouched. A URL
+  /// this cannot understand is left alone for [_validate] to reject.
+  static String _withExplicitPort(String serverUrl) {
+    final uri = Uri.tryParse(serverUrl);
+    if (uri == null || uri.host.isEmpty) return serverUrl;
+
+    final defaultPort = switch (uri.scheme.toLowerCase()) {
+      'https' => 443,
+      'http' => 80,
+      _ => null,
+    };
+    if (defaultPort == null) return serverUrl;
+
+    final authorityStart = serverUrl.indexOf('://') + 3;
+    var authorityEnd = serverUrl.length;
+    for (final delimiter in const ['/', '?', '#']) {
+      final at = serverUrl.indexOf(delimiter, authorityStart);
+      if (at != -1 && at < authorityEnd) authorityEnd = at;
+    }
+
+    final authority = serverUrl.substring(authorityStart, authorityEnd);
+    if (_namesPort(authority)) return serverUrl;
+
+    return serverUrl.replaceRange(authorityEnd, authorityEnd, ':$defaultPort');
+  }
+
+  /// Whether [authority] writes a port.
+  ///
+  /// Read off the string rather than taken from `Uri.hasPort`, which is false for
+  /// an *explicitly* written scheme default — the same normalisation as above, on
+  /// the detection side. Trusting it appends a second port to
+  /// `https://host:443/x`.
+  static bool _namesPort(String authority) {
+    // Any colon before the '@' belongs to credentials, not a port.
+    final host = authority.substring(authority.lastIndexOf('@') + 1);
+
+    // An IPv6 literal is bracketed and full of colons; only one after the
+    // closing bracket is a port.
+    final portStart = host.startsWith('[') ? host.indexOf(']') + 1 : 0;
+
+    return host.indexOf(':', portStart) != -1;
   }
 
   static void _requireIdentity(String value, String field) {

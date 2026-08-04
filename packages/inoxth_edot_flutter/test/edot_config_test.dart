@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
+// The channel encoding is internal, so it is reached through src/ rather than
+// being exported just to be testable.
+import 'package:inoxth_edot_flutter/src/edot_config.dart' show encodeConfig;
 
 void main() {
   EdotConfig validConfig({
@@ -79,6 +82,74 @@ void main() {
         );
       },
     );
+  });
+
+  group('serverUrl port', () {
+    // The pinned iOS Agent falls back to its own hardcoded 8200 when the URL
+    // string names no port, while Android resolves the scheme default. A portless
+    // URL would therefore export to two different places, and the failure is
+    // silent: telemetry simply never arrives on one platform.
+    test('gains the scheme default when the URL names none', () {
+      expect(
+        validConfig(serverUrl: 'https://apm.example.com').serverUrl,
+        'https://apm.example.com:443',
+      );
+      expect(
+        validConfig(serverUrl: 'http://apm.example.com').serverUrl,
+        'http://apm.example.com:80',
+      );
+    });
+
+    test('keeps the port ahead of the path', () {
+      expect(
+        validConfig(serverUrl: 'https://apm.example.com/v1/traces').serverUrl,
+        'https://apm.example.com:443/v1/traces',
+      );
+    });
+
+    test('leaves a URL that already names a port untouched', () {
+      expect(
+        validConfig(serverUrl: 'http://localhost:4318').serverUrl,
+        'http://localhost:4318',
+      );
+      // Including one that names the scheme default explicitly, which is already
+      // unambiguous and must not gain a second port. `Uri.hasPort` is false here —
+      // Dart normalises the default port away — so this is the case that catches
+      // asking `Uri` instead of reading the string.
+      expect(
+        validConfig(serverUrl: 'https://apm.example.com:443/x').serverUrl,
+        'https://apm.example.com:443/x',
+      );
+    });
+
+    test('tells an IPv6 literal apart from a port', () {
+      // A bracketed host is all colons, none of which is a port.
+      expect(
+        validConfig(serverUrl: 'http://[::1]/v1/traces').serverUrl,
+        'http://[::1]:80/v1/traces',
+      );
+      expect(
+        validConfig(serverUrl: 'http://[::1]:4318').serverUrl,
+        'http://[::1]:4318',
+      );
+    });
+
+    test('is what crosses the channel', () {
+      // The normalisation is worthless if the Agent receives the original.
+      expect(
+        encodeConfig(
+          validConfig(serverUrl: 'https://apm.example.com'),
+        )['serverUrl'],
+        'https://apm.example.com:443',
+      );
+    });
+
+    test('does not change the collector host', () {
+      expect(
+        validConfig(serverUrl: 'https://apm.example.com').collectorHost,
+        'apm.example.com',
+      );
+    });
   });
 
   group('credential safety', () {
