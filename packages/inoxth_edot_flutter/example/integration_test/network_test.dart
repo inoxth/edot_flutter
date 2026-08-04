@@ -1,14 +1,16 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:edot_collector_harness/edot_collector_harness.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
+import 'package:inoxth_edot_flutter_dio/inoxth_edot_flutter_dio.dart';
 
 import 'network_contract.dart';
 
-/// Seam 2, device half — makes real requests through the wrapped client.
+/// Seam 2, device half — makes real requests through both traced integrations.
 ///
 /// A server on the device's own loopback rather than a public host: it makes the
 /// status codes and body sizes deterministic, and it keeps the suite runnable with
@@ -27,7 +29,8 @@ void main() {
   testWidgets('network spans survive export', (tester) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
-      final failing = request.uri.path == failingPath;
+      final failing =
+          request.uri.path == failingPath || request.uri.path == dioFailingPath;
 
       final body = failing ? '{"error":"boom"}' : '{"id":42}';
 
@@ -93,6 +96,19 @@ void main() {
       await client.get(Uri.parse('http://127.0.0.1:1$unreachablePath'));
     } on Exception {
       // Expected. The span records why.
+    }
+
+    // The Dio integration, through the same server. Its own instance, because an
+    // interceptor is added to a Dio rather than wrapping a client.
+    final dio = Dio()..interceptors.add(EdotDioInterceptor());
+
+    await dio.get<dynamic>('$origin$dioPath');
+
+    try {
+      await dio.get<dynamic>('$origin$dioFailingPath');
+    } on DioException {
+      // Expected: Dio raises a 500 rather than returning it. That difference is the
+      // point of the assertion in the host half.
     }
 
     await Edot.flush();

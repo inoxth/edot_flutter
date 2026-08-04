@@ -36,6 +36,30 @@ const String unreachablePath = '/unreachable';
 const String parentedPath = '/parented';
 const String ambientParentSpanName = 'network-ambient-parent';
 
+/// Requested through the Dio interceptor rather than the wrapped client.
+///
+/// Deliberately outside `/orders/`: the configured hook collapses that, and a Dio
+/// span sharing a target with an `EdotHttpClient` one could not be told apart.
+///
+/// Both integrations drive the same `EdotRequestTrace` (ADR-0013), so what is proven
+/// here is not that the attributes are computed correctly a second time — Seam 1
+/// covers that — but that a Dio-originated span survives export at all, and that the
+/// one behaviour Dio does not share reaches the collector correctly.
+const String dioPath = '/dio-orders';
+
+/// Answered with 500, through Dio.
+///
+/// The behaviour Dio does not share: it raises a rejected status as an exception
+/// where `package:http` returns a response. This span must therefore look exactly
+/// like [failingPath]'s — a status code and a failed span, with no exception event —
+/// or the two integrations report the same server behaviour differently.
+const String dioFailingPath = '/dio-boom';
+
+/// Value of `http.client` for each integration, which is what attributes a span to
+/// one of them in a dashboard.
+const String httpClientName = 'http';
+const String dioClientName = 'dio';
+
 /// Requested against the Collector Host, which must produce no span at any path.
 const String collectorPath = '/v1/traces';
 

@@ -1,4 +1,5 @@
-// Seam 2, host half — asserts the client spans a wrapped request produces.
+// Seam 2, host half — asserts the client spans a traced request produces, through
+// `EdotHttpClient` and through the Dio interceptor.
 //
 //   dart run tool/verify_network.dart -d <device>
 //
@@ -46,11 +47,19 @@ Future<void> main(List<String> args) async {
       (o) =>
           o.spansNamed(controlSpanName).isNotEmpty &&
           o.spans.where((s) => s.attributes.containsKey(urlAttribute)).length >=
-              4,
+              6 &&
+          // Counted separately: the Dio spans arrive last, and a total that both
+          // integrations contribute to is satisfied by six http spans alone.
+          o.spans
+                  .where((s) => s.attributes[clientAttribute] == dioClientName)
+                  .length >=
+              2,
     );
 
     _report(output);
     _assertTracedRequest(output);
+    _assertDioRequest(output);
+    _assertDioRejectedStatus(output);
     _assertServerFailure(output);
     _assertTransportFailure(output);
     _assertExclusions(output);
@@ -99,6 +108,7 @@ void _report(CollectorOutput output) {
   for (final span in output.spans) {
     stdout.writeln(
       '    ${span.name}  kind=${span.kind.name}  '
+      'client=${span.attributes[clientAttribute]}  '
       'target=${span.attributes[targetAttribute]}  '
       'status=${span.attributes[statusAttribute]}  error=${span.isError}  '
       'parent=${span.parentSpanId ?? 'root'}',
@@ -153,6 +163,69 @@ void _assertTracedRequest(CollectorOutput output) {
   if (responseSize is! int || responseSize <= 0) {
     _failures.add(
       '$responseSizeAttribute is $responseSize, expected a positive integer',
+    );
+  }
+}
+
+/// A Dio-originated span survives export, carrying what the other integration's does.
+///
+/// The attributes come from one shared `EdotRequestTrace` (ADR-0013), so this is not
+/// a second test of how they are computed — Seam 1 owns that. It is the evidence that
+/// a Dio request reaches the collector at all, and is attributed to Dio when it does.
+void _assertDioRequest(CollectorOutput output) {
+  final span = _spanFor(output, dioPath);
+  if (span == null) {
+    _failures.add('no span carried $targetAttribute=$dioPath');
+    return;
+  }
+
+  _expect(span.attributes[clientAttribute], dioClientName, clientAttribute);
+  _expect(span.kind, SpanKind.client, 'span kind');
+  _expect(span.attributes[methodAttribute], 'GET', methodAttribute);
+  _expect(span.attributes[statusAttribute], 200, statusAttribute);
+  _expect(span.attributes[peerNameAttribute], '127.0.0.1', peerNameAttribute);
+  _expect(span.isError, false, 'a 200 must not be an error');
+
+  // The screen the request was made from, which reaches a Dio span through the same
+  // creation-time path (ADR-0004).
+  _expect(
+    span.attributes[screenNameAttribute],
+    screenName,
+    screenNameAttribute,
+  );
+
+  // The other integration's span must still say it is the other integration's, or
+  // this assertion would pass on a run where every span claimed to be Dio's.
+  final wrapped = _spanFor(output, sanitizedTarget);
+  _expect(
+    wrapped?.attributes[clientAttribute],
+    httpClientName,
+    '$clientAttribute of the $sanitizedTarget span',
+  );
+}
+
+/// The one behaviour Dio does not share, asserted where it is observable.
+///
+/// Dio raises a rejected status as an exception where `package:http` returns a
+/// response. Recorded naively that puts an exception event on Dio's 500 spans and not
+/// on the other integration's, for identical server behaviour — so the two are
+/// compared against each other here rather than each against a fixed expectation.
+void _assertDioRejectedStatus(CollectorOutput output) {
+  final dioSpan = _spanFor(output, dioFailingPath);
+  if (dioSpan == null) {
+    _failures.add('no span carried $targetAttribute=$dioFailingPath');
+    return;
+  }
+
+  _expect(dioSpan.attributes[statusAttribute], 500, statusAttribute);
+  _expect(dioSpan.isError, true, 'a 500 must be an error');
+
+  if (dioSpan.eventNamed(exceptionEventName) != null) {
+    _failures.add(
+      'the Dio 500 span carries an $exceptionEventName event. Dio raises a '
+      'rejected status as an exception, but a status code is an answer — and the '
+      '$failingPath span does not carry one, so the two integrations would '
+      'report the same server behaviour differently',
     );
   }
 }
@@ -255,10 +328,13 @@ void _assertSyntheticParent(CollectorOutput output) {
   final platform = output
       .spanNamed(controlSpanName)
       .attributes[platformAttribute];
-  final traced = [sanitizedTarget, failingPath, unreachablePath]
-      .map((target) => _spanFor(output, target))
-      .whereType<ExportedSpan>()
-      .toList();
+  // Both integrations: the Agent keys this off `http.url`, not off which transport
+  // produced the span, so a Dio span is subject to exactly the same rule.
+  final traced =
+      [sanitizedTarget, failingPath, unreachablePath, dioPath, dioFailingPath]
+          .map((target) => _spanFor(output, target))
+          .whereType<ExportedSpan>()
+          .toList();
 
   for (final span in traced) {
     final target = span.attributes[targetAttribute];

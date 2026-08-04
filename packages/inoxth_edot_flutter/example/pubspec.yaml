@@ -28,6 +28,16 @@ dependencies:
     # the parent directory to use the current plugin's version.
     path: ../
 
+  # Here so Seam 2 can prove a Dio-originated span reaches the collector. The two
+  # integrations share their recording (ADR-0013), but sharing it is not the same as
+  # having watched Dio's own span survive export.
+  inoxth_edot_flutter_dio:
+    path: ../../inoxth_edot_flutter_dio
+
+  # Directly, because the device half builds a `Dio` and catches a `DioException`
+  # itself. An integration package's own dependency is not this app's to borrow.
+  dio: ^5.4.0
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
