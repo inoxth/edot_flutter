@@ -222,12 +222,17 @@ class EdotSpan {
   /// Does **not** fail the span. OpenTelemetry keeps the two separate, and so does
   /// this: an exception can be recorded on an operation that recovered and
   /// succeeded. Call [markFailed] when the operation itself failed.
-  void recordException(Object error, {StackTrace? stackTrace}) {
+  ///
+  /// [type] overrides `exception.type`, which is otherwise [error]'s runtime type.
+  /// For a library whose one exception class covers many causes, the class name
+  /// cannot tell a cancellation from a timeout, and that distinction is most of what
+  /// the attribute is read for.
+  void recordException(Object error, {StackTrace? stackTrace, String? type}) {
     if (_ended) return;
 
     sendOneWay('spanRecordException', <String, Object?>{
       'shadowId': shadowId,
-      'type': error.runtimeType.toString(),
+      'type': type ?? error.runtimeType.toString(),
       'message': error.toString(),
       'stacktrace': stackTrace?.toString(),
     });

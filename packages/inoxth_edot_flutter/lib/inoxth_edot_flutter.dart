@@ -36,5 +36,8 @@ export 'src/edot_config.dart'
         EdotSecretTokenAuth,
         ExportProtocol;
 export 'src/edot_http_client.dart' show EdotHttpClient;
+// EdotRequestTrace is deliberately *not* exported here. It is what an integration
+// package is built on, not something an app needs, and it lives in
+// `instrumentation.dart` so this surface stays the one an app developer reads.
 export 'src/edot_signals.dart' show EdotMetricKind, EdotSeverity;
 export 'src/edot_tracer.dart' show EdotSpan, EdotSpanKind, EdotTracer;

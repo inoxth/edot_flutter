@@ -8,6 +8,14 @@
 /// Do not merge this into the core package for convenience. That reintroduces
 /// exactly the coupling this split exists to avoid.
 ///
-/// The interceptor itself lands in the Dio ticket, once the network attribute set
-/// and trace context propagation exist in core to reuse.
+/// ```dart
+/// dio.interceptors.add(EdotDioInterceptor());
+/// ```
+///
+/// What a request records, and which requests are traced at all, comes from the core
+/// package's `EdotRequestTrace` — the same object `EdotHttpClient` drives.
+/// This package holds only what is Dio's own: reading a `RequestOptions`, and knowing
+/// that Dio raises a 4xx as an exception where `package:http` returns it.
 library;
+
+export 'src/edot_dio_interceptor.dart' show EdotDioInterceptor;
