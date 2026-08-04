@@ -69,22 +69,26 @@ class InoxthEdotFlutterPlugin :
             // and the channel protocol is shared, so the type travels in the
             // method name on both platforms.
             "spanSetString" ->
-                withSpan(call, result) { span, key ->
+                withSpan(call, result) { span ->
+                    val key = call.requireString("key")
                     span.setAttribute(AttributeKey.stringKey(key), call.requireString("value"))
                 }
 
             "spanSetInt" ->
-                withSpan(call, result) { span, key ->
+                withSpan(call, result) { span ->
+                    val key = call.requireString("key")
                     span.setAttribute(AttributeKey.longKey(key), call.requireLong("value"))
                 }
 
             "spanSetDouble" ->
-                withSpan(call, result) { span, key ->
+                withSpan(call, result) { span ->
+                    val key = call.requireString("key")
                     span.setAttribute(AttributeKey.doubleKey(key), call.requireDouble("value"))
                 }
 
             "spanSetBool" ->
-                withSpan(call, result) { span, key ->
+                withSpan(call, result) { span ->
+                    val key = call.requireString("key")
                     span.setAttribute(AttributeKey.booleanKey(key), call.requireBoolean("value"))
                 }
 
@@ -97,17 +101,20 @@ class InoxthEdotFlutterPlugin :
     }
 
     /**
-     * Resolves the Shadow Span a call refers to and hands it, with the attribute
-     * key, to [action].
+     * Resolves the Shadow Span a call refers to and hands it to [action].
      *
-     * Never replies with an error: none of these calls is awaited in Dart
-     * (ADR-0002), so an error would surface as an unhandled channel failure
-     * detached from the call site rather than at it.
+     * Never replies with an error for a missing span: none of these calls is
+     * awaited in Dart (ADR-0002), so an error would surface as an unhandled
+     * channel failure detached from the call site rather than at it.
+     *
+     * [action] reads whatever further arguments it needs itself, so each method
+     * requires exactly the fields it actually has rather than defaulting an
+     * absent one to something harmless-looking.
      */
     private fun withSpan(
         call: MethodCall,
         result: Result,
-        action: (Span, String) -> Unit
+        action: (Span) -> Unit
     ) {
         val shadowId = call.requireString("shadowId")
         val span = spans[shadowId]
@@ -120,7 +127,7 @@ class InoxthEdotFlutterPlugin :
             return
         }
 
-        action(span, call.argument<String>("key") ?: "")
+        action(span)
         result.success(null)
     }
 
@@ -128,7 +135,7 @@ class InoxthEdotFlutterPlugin :
         call: MethodCall,
         result: Result
     ) {
-        withSpan(call, result) { span, _ ->
+        withSpan(call, result) { span ->
             val attributes =
                 Attributes
                     .builder()
@@ -152,7 +159,7 @@ class InoxthEdotFlutterPlugin :
         call: MethodCall,
         result: Result
     ) {
-        withSpan(call, result) { span, _ ->
+        withSpan(call, result) { span ->
             // setStatus takes a non-null description, so an absent one becomes
             // empty rather than being omitted.
             span.setStatus(StatusCode.ERROR, call.argument<String>("description") ?: "")

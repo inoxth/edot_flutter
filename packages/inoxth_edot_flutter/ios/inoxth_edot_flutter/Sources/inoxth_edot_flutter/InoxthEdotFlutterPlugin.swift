@@ -49,34 +49,22 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     // `as? Int` succeeds on a double just as `as? Double` succeeds on an integer.
     // The method name is what carries the type, not the value's runtime class.
     case "spanSetString":
-      withSpan(call, result) { span, args in
-        guard let key = args["key"] as? String,
-              let value = args["value"] as? String else { return }
-        span.setAttribute(key: key, value: value)
-      }
+      setAttribute(call, result, as: String.self) { $0.setAttribute(key: $1, value: $2) }
     case "spanSetInt":
-      withSpan(call, result) { span, args in
-        guard let key = args["key"] as? String,
-              let value = args["value"] as? Int else { return }
-        span.setAttribute(key: key, value: value)
-      }
+      setAttribute(call, result, as: Int.self) { $0.setAttribute(key: $1, value: $2) }
     case "spanSetDouble":
-      withSpan(call, result) { span, args in
-        guard let key = args["key"] as? String,
-              let value = args["value"] as? Double else { return }
-        span.setAttribute(key: key, value: value)
-      }
+      setAttribute(call, result, as: Double.self) { $0.setAttribute(key: $1, value: $2) }
     case "spanSetBool":
-      withSpan(call, result) { span, args in
-        guard let key = args["key"] as? String,
-              let value = args["value"] as? Bool else { return }
-        span.setAttribute(key: key, value: value)
-      }
+      setAttribute(call, result, as: Bool.self) { $0.setAttribute(key: $1, value: $2) }
 
     case "spanRecordException":
       withSpan(call, result) { span, args in
         guard let type = args["type"] as? String,
-              let message = args["message"] as? String else { return }
+              let message = args["message"] as? String
+        else {
+          self.log("spanRecordException with malformed arguments; dropped")
+          return
+        }
         Self.addExceptionEvent(
           to: span,
           type: type,
@@ -92,6 +80,29 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
 
     case "flush": flush(result)
     default: result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// Applies one typed attribute to the Shadow Span a call refers to.
+  ///
+  /// Generic over the value type so the cast, and the log when it fails, live in
+  /// one place rather than being repeated per type. `T` is fixed at each call
+  /// site, which is what selects the right `setAttribute` overload — and which is
+  /// how the integer/double distinction survives a channel that has already
+  /// collapsed both into `NSNumber`.
+  private func setAttribute<T>(
+    _ call: FlutterMethodCall,
+    _ result: @escaping FlutterResult,
+    as type: T.Type,
+    _ apply: @escaping (Span, String, T) -> Void
+  ) {
+    withSpan(call, result) { span, args in
+      guard let key = args["key"] as? String, let value = args["value"] as? T
+      else {
+        self.log("\(call.method) with a malformed key or value; dropped")
+        return
+      }
+      apply(span, key, value)
     }
   }
 
@@ -271,7 +282,7 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
   ///
   /// [escaped] and [stacktrace] are omitted when nil rather than sent empty, so
   /// each caller emits only what it actually knows. The network instrumentation
-  /// passes `escaped: false` for parity with the Agent's own instrumentation;
+  /// passes `escaped: false` to match what the Agent's own instrumentation emits;
   /// ADR-0003's error vocabulary does not include that attribute, so a recorded
   /// exception leaves it out and sends a stack trace instead.
   private static func addExceptionEvent(
