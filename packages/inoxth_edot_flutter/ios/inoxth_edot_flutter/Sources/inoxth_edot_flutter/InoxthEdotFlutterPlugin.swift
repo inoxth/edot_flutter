@@ -335,14 +335,35 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       return
     }
 
-    let span = OpenTelemetry.instance.tracerProvider
+    let builder = OpenTelemetry.instance.tracerProvider
       .get(instrumentationName: Self.instrumentationScope, instrumentationVersion: nil)
       .spanBuilder(spanName: name)
       .setStartTime(time: Self.date(microsecondsSinceEpoch: startUs))
-      .startSpan()
+
+    // Parenting is always stated, never inherited. OpenTelemetry would otherwise
+    // fall back to the active span on whichever thread this arrives on, and a
+    // Dart span silently adopting some unrelated native span as its parent is
+    // precisely the plausible-but-wrong tree this design avoids. ADR-0002: native
+    // context is thread-local and has no link back to the Dart caller.
+    if let parentShadowId = args["parentShadowId"] as? String {
+      spansLock.lock()
+      let parent = spans[parentShadowId]
+      spansLock.unlock()
+
+      if let parent {
+        builder.setParent(parent)
+      } else {
+        // Ended before its child started, which is a caller bug. Logged rather
+        // than hidden; the span becomes a root.
+        log("parent shadow id '\(parentShadowId)' is not active; starting a root")
+        builder.setNoParent()
+      }
+    } else {
+      builder.setNoParent()
+    }
 
     spansLock.lock()
-    spans[shadowId] = span
+    spans[shadowId] = builder.startSpan()
     spansLock.unlock()
 
     result(nil)

@@ -1,8 +1,20 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
 import 'edot_channel.dart';
+
+/// Zone key holding the ambient parent span.
+///
+/// A zone rather than a field on the tracer, because parenting is per-flow: two
+/// concurrent async flows must not steal each other's parent. A mutable
+/// "currently active span" would do exactly that, and would produce trace trees
+/// that look plausible and are wrong — worse than no nesting at all. Zones are
+/// Dart's own mechanism and survive `await` boundaries, which is what makes them
+/// the right fit (see ADR-0004, which contrasts this with the Active View's
+/// deliberately global singleton).
+final Object _ambientParentKey = Object();
 
 /// Creates spans.
 ///
@@ -38,23 +50,56 @@ class EdotTracer {
 
   static int _idCounter = 0;
 
+  /// The span that [startSpan] would nest under right now, if any.
+  ///
+  /// Set by [runWithParent] and inherited across `await` boundaries.
+  EdotSpan? get ambientParent => Zone.current[_ambientParentKey] as EdotSpan?;
+
+  /// Runs [body] with [parent] as the ambient parent, so spans created anywhere
+  /// inside it — including after an `await` — become its children without being
+  /// passed a parent.
+  ///
+  /// Generic over the return type so one method serves both synchronous and
+  /// asynchronous bodies: an `async` body returns a `Future`, and the zone is
+  /// inherited by its continuations.
+  ///
+  /// The scope is the body, not the span's lifetime. Spans started after this
+  /// returns are not children of [parent], even if it has not ended yet — which
+  /// is the point, because tying the scope to the span would make it ambient for
+  /// concurrent work that has nothing to do with it.
+  R runWithParent<R>(EdotSpan parent, R Function() body) =>
+      runZoned(body, zoneValues: {_ambientParentKey: parent});
+
   /// Starts a span. Call [EdotSpan.end] to finish it.
+  ///
+  /// Nests under [parent] when given, otherwise under [ambientParent], otherwise
+  /// starts a new trace as a root.
+  ///
+  /// Being the most recently started span does *not* make a span a parent. That
+  /// rule is what produces plausible-looking, wrong trace trees as soon as two
+  /// async flows overlap; use [runWithParent] to establish parenting explicitly.
   ///
   /// The returned span is already registered with the Agent — this does not
   /// await, so a dropped span surfaces in debug logs rather than as an exception
   /// at the call site.
-  EdotSpan startSpan(String name) {
+  EdotSpan startSpan(String name, {EdotSpan? parent}) {
     if (name.trim().isEmpty) {
       throw ArgumentError.value(name, 'name', 'span name must not be blank');
     }
 
     final shadowId = '$_idPrefix-${_idCounter++}';
     final startedAt = _now();
+    final resolvedParent = parent ?? ambientParent;
 
     sendOneWay('spanStart', <String, Object?>{
       'shadowId': shadowId,
       'name': name,
       'startUs': startedAt.microsecondsSinceEpoch,
+      // Null means root. A parent that has already ended is no longer in the
+      // Agent's registry, so the Agent logs it and starts a root instead —
+      // ending a parent before its children is a caller bug, and silently
+      // re-rooting it here would hide that rather than surface it.
+      'parentShadowId': resolvedParent?.shadowId,
     });
 
     return EdotSpan._(

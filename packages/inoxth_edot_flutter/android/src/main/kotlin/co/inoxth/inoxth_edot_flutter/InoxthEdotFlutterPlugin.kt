@@ -17,6 +17,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.resources.Resource
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -276,15 +277,36 @@ class InoxthEdotFlutterPlugin :
         }
 
         val shadowId = call.requireString("shadowId")
-        val span =
+        val builder =
             agent
                 .getOpenTelemetry()
                 .getTracer(INSTRUMENTATION_SCOPE)
                 .spanBuilder(call.requireString("name"))
                 .setStartTimestamp(call.requireLong("startUs"), TimeUnit.MICROSECONDS)
-                .startSpan()
 
-        spans[shadowId] = span
+        // Parenting is always stated, never inherited. OpenTelemetry would
+        // otherwise fall back to Context.current() on whichever thread this
+        // arrives on, and a Dart span silently adopting some unrelated native
+        // span as its parent is precisely the plausible-but-wrong tree this
+        // design avoids. ADR-0002: native Context is thread-local and has no link
+        // back to the Dart caller.
+        val parent = call.argument<String>("parentShadowId")?.let { parentShadowId ->
+            spans[parentShadowId].also {
+                if (it == null) {
+                    // Ended before its child started, which is a caller bug.
+                    // Logged rather than hidden; the span becomes a root.
+                    log("parent shadow id '$parentShadowId' is not active; starting a root")
+                }
+            }
+        }
+
+        if (parent == null) {
+            builder.setNoParent()
+        } else {
+            builder.setParent(Context.root().with(parent))
+        }
+
+        spans[shadowId] = builder.startSpan()
         result.success(null)
     }
 
