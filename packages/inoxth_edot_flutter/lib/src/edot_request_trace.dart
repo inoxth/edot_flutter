@@ -4,6 +4,20 @@ import 'edot_tracer.dart';
 import 'edot_tracing_rules.dart';
 import 'edot_url.dart';
 
+/// Traced Marker: says a span already exists for this request.
+///
+/// Named after this organisation's React Native SDK's `X-Edot-RN-Traced`, which
+/// solves the same problem one layer up.
+///
+/// It travels on the wire rather than being stripped before dispatch. The layer that
+/// would strip it is the app-wide one, which only runs when app-wide tracing is
+/// enabled — so stripping would make the request the service receives depend on which
+/// layers happen to be on. A boolean marker is not worth that inconsistency.
+const String tracedMarkerHeader = 'x-edot-flutter-traced';
+
+/// Value of [tracedMarkerHeader]. Only its presence is ever read.
+const String tracedMarkerValue = '1';
+
 /// One outbound request being traced, whatever transport made it.
 ///
 /// Integrations drive this rather than building spans of their own. The Elastic
@@ -102,13 +116,33 @@ class EdotRequestTrace {
     );
   }
 
-  /// W3C Trace Context headers for this request, or empty when it carries none.
+  /// Every header a transport must put on this request.
   ///
-  /// Empty rather than null so a transport can add it unconditionally. Awaits the
-  /// Agent, which is the one place the Plugin does (ADR-0002) — the span is already
-  /// running when this happens, because the ids do not exist until it is.
-  Future<Map<String, String>> traceContextHeaders() =>
-      _propagate ? _span.traceContextHeaders() : Future.value(const {});
+  /// The Traced Marker always, so app-wide `dart:io` tracing knows a span already
+  /// exists for this request and does not create a second one. Trace Context as well
+  /// when this request propagates.
+  ///
+  /// One call rather than two, because a transport that added the Trace Context and
+  /// forgot the marker would double-count every request it traced — and nothing about
+  /// its own span would look wrong.
+  ///
+  /// Awaits the Agent, which is the one place the Plugin does (ADR-0002) — the span is
+  /// already running when this happens, because the ids do not exist until it is.
+  Future<Map<String, String>> outgoingHeaders() async => <String, String>{
+    tracedMarkerHeader: tracedMarkerValue,
+    // Not gated on propagation: a request left out of the target list still has a
+    // span, so it still has to be recognised as already traced.
+    if (_propagate) ...await _span.traceContextHeaders(),
+  };
+
+  /// Records the request body's size, for a transport that learns it only once the
+  /// request has been dispatched.
+  ///
+  /// `dart:io` is one: its `contentLength` is set by the caller after the request
+  /// object exists. Without this the app-wide path would be the one integration that
+  /// never reports `http.request_body.size`.
+  void recordRequestSize(int size) =>
+      _span.setInt('http.request_body.size', size);
 
   /// Records a request the service answered.
   ///

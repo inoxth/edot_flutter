@@ -65,7 +65,7 @@ class EdotDioInterceptor extends Interceptor {
     // Overwrites a `traceparent` header the caller set, for the reason
     // `EdotHttpClient` does — it names the immediate parent of the request, and that
     // is now this span.
-    options.headers.addAll(await trace.traceContextHeaders());
+    options.headers.addAll(await trace.outgoingHeaders());
 
     handler.next(options);
   }

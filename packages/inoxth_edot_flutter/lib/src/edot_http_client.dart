@@ -67,7 +67,7 @@ class EdotHttpClient extends http.BaseClient {
       // parent of the request, and once this client has wrapped it that is this
       // span; leaving an outer context in place would parent the receiving
       // service's work to something that did not make the call.
-      request.headers.addAll(await trace.traceContextHeaders());
+      request.headers.addAll(await trace.outgoingHeaders());
 
       final response = await _inner.send(request);
 

@@ -74,6 +74,7 @@ class EdotConfig {
     this.urlSanitizer,
     this.excludedUrls = const [],
     this.tracePropagationTargets,
+    this.traceAllHttpTraffic = false,
   }) : serverUrl = _withExplicitPort(serverUrl),
        collectorHost = _validate(
          serviceName: serviceName,
@@ -152,6 +153,22 @@ class EdotConfig {
   /// Matched like [excludedUrls]: a `String` as a substring, a [RegExp] as a
   /// regular expression, against the URL as given.
   final List<Pattern>? tracePropagationTargets;
+
+  /// Traces every request `dart:io` makes, not only those made through this
+  /// Plugin's own transports.
+  ///
+  /// Reaches what wrapping a client cannot: a third-party pure-Dart package builds its
+  /// own `HttpClient`, and nothing at the app's own call sites will see it. Off by
+  /// default, because it installs a process-wide `HttpOverrides` — one call's worth of
+  /// opt-in for a global effect.
+  ///
+  /// A request already traced by [EdotHttpClient] or the Dio interceptor is not traced
+  /// twice; those layers mark it, and this one leaves a marked request alone.
+  ///
+  /// Two things differ on this path, both unavoidable and neither affecting requests
+  /// made through the other transports: the span begins when the request is dispatched
+  /// rather than when the connection is opened, and it carries no Trace Context.
+  final bool traceAllHttpTraffic;
 
   /// Host component of [serverUrl].
   ///
@@ -285,7 +302,8 @@ class EdotConfig {
       // "all hosts" rather than a count, because null and an empty list are
       // opposites here and both would print as a number nobody could tell apart.
       'tracePropagationTargets: '
-      '${tracePropagationTargets == null ? 'all hosts' : '${tracePropagationTargets!.length} pattern(s)'})';
+      '${tracePropagationTargets == null ? 'all hosts' : '${tracePropagationTargets!.length} pattern(s)'}, '
+      'traceAllHttpTraffic: $traceAllHttpTraffic)';
 }
 
 /// Encodes [config] for the platform channel.

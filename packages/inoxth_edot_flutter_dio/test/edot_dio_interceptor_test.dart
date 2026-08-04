@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 import 'package:inoxth_edot_flutter_dio/inoxth_edot_flutter_dio.dart';
 
@@ -456,6 +457,102 @@ void main() {
       );
 
       expect(callsTo('spanEnd'), hasLength(1));
+    });
+  });
+
+  group('with app-wide tracing also enabled', () {
+    // The combination that double-counts if the Traced Marker is not honoured: Dio
+    // dispatches through `dart:io`, so both layers see the same request. A real client
+    // and a real loopback server, because the stub adapter above bypasses `dart:io`
+    // entirely and so could never show the two layers meeting.
+    late HttpServer server;
+    late String origin;
+    HttpOverrides? previousOverrides;
+
+    setUp(() async {
+      // `flutter_test`'s own override answers every request without a socket.
+      // Captured so the sibling groups, which do want it, get it back.
+      previousOverrides = HttpOverrides.current;
+      HttpOverrides.global = null;
+
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        request.response.statusCode = 200;
+        request.response.headers.contentLength = 2;
+        request.response.write('{}');
+        await request.response.close();
+      });
+      origin = 'http://${InternetAddress.loopbackIPv4.address}:${server.port}';
+    });
+
+    tearDown(() async {
+      HttpOverrides.global = previousOverrides;
+      await server.close(force: true);
+    });
+
+    test('a Dio request produces exactly one span', () async {
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.2.3',
+          deploymentEnvironment: 'test',
+          serverUrl: 'https://apm.example.com:4318',
+          traceAllHttpTraffic: true,
+        ),
+      );
+      calls.clear();
+
+      final dio = Dio()..interceptors.add(EdotDioInterceptor());
+      await dio.get<dynamic>('$origin/orders');
+
+      expect(callsTo('spanStart'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(1));
+      // Dio's own span, not the app-wide layer's: the interceptor marked the request,
+      // and the marker is what the inner layer stands down for.
+      expect(creationAttributes(), containsPair('http.client', 'dio'));
+    });
+
+    test('one span per request with every layer enabled at once', () async {
+      // The combination the ticket asks for literally: all three transports in one
+      // session. Each request must be claimed by exactly one layer, and the innermost
+      // must stand down for the two that marked their own.
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.2.3',
+          deploymentEnvironment: 'test',
+          serverUrl: 'https://apm.example.com:4318',
+          traceAllHttpTraffic: true,
+        ),
+      );
+      calls.clear();
+
+      final wrapped = EdotHttpClient(http.Client());
+      final dio = Dio()..interceptors.add(EdotDioInterceptor());
+      final bare = HttpClient();
+
+      await wrapped.get(Uri.parse('$origin/via-http'));
+      await dio.get<dynamic>('$origin/via-dio');
+      await (await bare.getUrl(
+        Uri.parse('$origin/via-dart-io'),
+      )).close().then((r) => r.drain<void>());
+
+      wrapped.close();
+      bare.close();
+
+      // Three requests, three spans — not five, which is what two unmarked layers
+      // would produce.
+      expect(callsTo('spanStart'), hasLength(3));
+      expect(callsTo('spanEnd'), hasLength(3));
+
+      final owners = callsTo('spanStart')
+          .map(
+            (call) =>
+                (argumentsOf(call)['attributes']
+                    as Map<Object?, Object?>)['http.client'],
+          )
+          .toList();
+      expect(owners, containsAll(<String>['http', 'dio', 'dart:io']));
     });
   });
 

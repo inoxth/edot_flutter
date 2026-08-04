@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
+import 'edot_http_overrides.dart';
 import 'edot_config.dart';
 import 'edot_signals.dart';
 import 'edot_tracing_rules.dart';
@@ -44,6 +45,14 @@ abstract final class Edot {
 
     _tracer = EdotTracer();
     setTracingRules(EdotTracingRules.fromConfig(config));
+
+    // After the rules, never before: the override starts tracing the moment it is in
+    // place, and without rules it could not tell the Collector Host from anything else.
+    if (config.traceAllHttpTraffic) {
+      installHttpOverrides();
+      edotLog('tracing all dart:io traffic');
+    }
+
     edotLog('agent started');
   }
 
@@ -186,5 +195,6 @@ abstract final class Edot {
     debugLoggingEnabled = false;
     active_view.clearActiveView();
     clearTracingRules();
+    uninstallHttpOverrides();
   }
 }
