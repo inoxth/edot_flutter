@@ -73,6 +73,7 @@ class EdotConfig {
     this.android = const EdotAndroidConfig(),
     this.urlSanitizer,
     this.excludedUrls = const [],
+    this.tracePropagationTargets,
   }) : serverUrl = _withExplicitPort(serverUrl),
        collectorHost = _validate(
          serviceName: serviceName,
@@ -136,6 +137,21 @@ class EdotConfig {
   /// Matched against the URL as given, query string included — excluding by a query
   /// parameter is a normal thing to want.
   final List<Pattern> excludedUrls;
+
+  /// Which traced requests carry W3C Trace Context, so the spans they cause
+  /// downstream join this app's trace.
+  ///
+  /// Null, the default, propagates to every traced host — the same reach as the
+  /// Agents' own instrumentation. Give a list to narrow it: to keep this app's trace
+  /// identifiers away from a third party, or off a partner's request filtering. An
+  /// empty list propagates to nothing.
+  ///
+  /// Narrowing this costs nothing but the link. A request to a host left out is
+  /// still traced, and its span still reaches Kibana.
+  ///
+  /// Matched like [excludedUrls]: a `String` as a substring, a [RegExp] as a
+  /// regular expression, against the URL as given.
+  final List<Pattern>? tracePropagationTargets;
 
   /// Host component of [serverUrl].
   ///
@@ -265,7 +281,11 @@ class EdotConfig {
       // useful representation, and the patterns are the first thing to suspect when
       // a request is missing from Kibana.
       'urlSanitizer: ${urlSanitizer == null ? 'none' : 'set'}, '
-      'excludedUrls: ${excludedUrls.length})';
+      'excludedUrls: ${excludedUrls.length}, '
+      // "all hosts" rather than a count, because null and an empty list are
+      // opposites here and both would print as a number nobody could tell apart.
+      'tracePropagationTargets: '
+      '${tracePropagationTargets == null ? 'all hosts' : '${tracePropagationTargets!.length} pattern(s)'})';
 }
 
 /// Encodes [config] for the platform channel.

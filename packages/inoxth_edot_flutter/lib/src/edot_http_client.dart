@@ -19,6 +19,11 @@ import 'edot_url.dart';
 /// Host (ADR-0006) and to any URL matched by [EdotConfig.excludedUrls] pass through
 /// untraced.
 ///
+/// A traced request also carries W3C Trace Context, so the spans it causes in the
+/// services it reaches join this trace. [EdotConfig.tracePropagationTargets]
+/// narrows which requests do; an untraced request never does, having no span to
+/// name.
+///
 /// Only requests made through this client are traced. `dart:io` reaches the network
 /// through its own sockets, so a request made with a bare `HttpClient` is invisible
 /// here — and to the Agent's native instrumentation too.
@@ -61,7 +66,15 @@ class EdotHttpClient extends http.BaseClient {
     if (isCollectorHost(url, rules.collectorHost)) return _inner.send(request);
     if (isExcluded(url, rules.excludedUrls)) return _inner.send(request);
 
-    return _traced(request, sanitizeUrl(url, rules.urlSanitizer));
+    return _traced(
+      request,
+      sanitizeUrl(url, rules.urlSanitizer),
+      // Decided here, on the URL as given, for the same reason the two exclusions
+      // are: a pattern may be written against a query parameter. It arrives as a
+      // decision rather than as the raw URL so that _traced keeps its one rule —
+      // nothing downstream sees anything but the sanitised URL.
+      propagate: shouldPropagate(url, rules.tracePropagationTargets),
+    );
   }
 
   /// Everything downstream reads [sanitizedUrl], never the original.
@@ -71,8 +84,9 @@ class EdotHttpClient extends http.BaseClient {
   /// one place nobody thought to sanitise.
   Future<http.StreamedResponse> _traced(
     http.BaseRequest request,
-    String sanitizedUrl,
-  ) async {
+    String sanitizedUrl, {
+    required bool propagate,
+  }) async {
     final attributes = <String, String>{
       'http.method': request.method,
       'http.url': sanitizedUrl,
@@ -105,6 +119,20 @@ class EdotHttpClient extends http.BaseClient {
     if (requestSize != null) span.setInt('http.request_body.size', requestSize);
 
     try {
+      // Inside the try so the span still ends if this throws — a request that has
+      // already been sent once rejects new headers, and a span left unended would
+      // sit in the Agent's registry for the life of the process.
+      //
+      // Overwrites a `traceparent` the caller set. The header names the immediate
+      // parent of the request, and once this client has wrapped it that is this
+      // span; leaving an outer context in place would parent the receiving
+      // service's work to something that did not make the call.
+      //
+      // The span is already running, so its duration includes this round trip —
+      // the ordering the ids force, since they do not exist until the span does.
+      // One channel message, against the network I/O that follows it.
+      if (propagate) request.headers.addAll(await span.traceContextHeaders());
+
       final response = await _inner.send(request);
 
       span.setInt('http.status_code', response.statusCode);

@@ -59,7 +59,28 @@ bool isCollectorHost(String url, String collectorHost) {
 /// Matched against the URL as given, query string included. Excluding by a query
 /// parameter is a normal thing to want, and matching a URL is not recording it.
 bool isExcluded(String url, List<Pattern> patterns) =>
+    _matchesAny(url, patterns);
+
+/// The one matching rule the configurable URL lists share.
+///
+/// Shared rather than written twice so that "matched the same way" stays true of
+/// both lists; they differ in what an absent list means, not in how a pattern is
+/// compared.
+bool _matchesAny(String url, List<Pattern> patterns) =>
     patterns.any((pattern) => pattern.allMatches(url).isNotEmpty);
+
+/// Whether [url] should carry Trace Context.
+///
+/// A null [targets] propagates to everything, which is what the Agents' own
+/// instrumentation does — a Dart layer that propagated to less by default would
+/// mean two different rules to document for one app. An empty list propagates to
+/// nothing, and is the only way to say that; both readings follow this
+/// organisation's React Native SDK.
+///
+/// Matched like [isExcluded]: against the URL as given, a `String` as a substring
+/// and a [RegExp] as a regular expression.
+bool shouldPropagate(String url, List<Pattern>? targets) =>
+    targets == null || _matchesAny(url, targets);
 
 /// Path of [url], for `http.target`.
 ///

@@ -78,6 +78,8 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
         span.status = .error(description: args["description"] as? String ?? "")
       }
 
+    case "spanTraceContext": spanTraceContext(call, result)
+
     case "emitLog": emitLog(call, result)
     case "recordMetric": recordMetric(call, result)
 
@@ -563,6 +565,54 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
 
     span.end(time: Self.date(microsecondsSinceEpoch: endUs))
     result(nil)
+  }
+
+  /// Replies with the W3C Trace Context headers for a Shadow Span.
+  ///
+  /// The one call Dart waits for (ADR-0002): the real trace and span ids are here,
+  /// not in Dart.
+  ///
+  /// Built by the propagator rather than formatted by hand, so the header is
+  /// whatever this OpenTelemetry version says W3C means — and so `tracestate` comes
+  /// along when the span carries one. It writes only its own fields, which is also
+  /// what keeps the deprecated `elastic-apm-traceparent` out.
+  ///
+  /// An empty map for an unknown span, which Dart treats as "no context": the
+  /// request goes out uncorrelated rather than not at all.
+  private func spanTraceContext(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard let args = call.arguments as? [String: Any],
+          let shadowId = args["shadowId"] as? String
+    else {
+      log("spanTraceContext with malformed arguments; no context returned")
+      result([String: String]())
+      return
+    }
+
+    spansLock.lock()
+    let span = spans[shadowId]
+    spansLock.unlock()
+
+    guard let span else {
+      log("spanTraceContext for unknown shadow id '\(shadowId)'; no context returned")
+      result([String: String]())
+      return
+    }
+
+    var headers: [String: String] = [:]
+    W3CTraceContextPropagator().inject(
+      spanContext: span.context,
+      carrier: &headers,
+      setter: DictionarySetter())
+
+    result(headers)
+  }
+
+  /// Carries injected headers into a dictionary. OpenTelemetryApi declares the
+  /// protocol but ships no implementation of it.
+  private struct DictionarySetter: Setter {
+    func set(carrier: inout [String: String], key: String, value: String) {
+      carrier[key] = value
+    }
   }
 
   private static func date(microsecondsSinceEpoch: Int) -> Date {

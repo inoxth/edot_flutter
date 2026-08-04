@@ -155,6 +155,30 @@ class EdotSpan {
   /// Whether [end] has already run.
   bool get isEnded => _ended;
 
+  /// W3C Trace Context headers naming this span as the caller, for an outgoing
+  /// request.
+  ///
+  /// The one call that waits for the Agent (ADR-0002). It has to: the headers carry
+  /// the real trace and span ids, and those belong to the Agent's span. A locally
+  /// minted identifier would link the receiving service's spans to a span Kibana
+  /// has never heard of, which is worse than no link.
+  ///
+  /// W3C only — `traceparent`, plus `tracestate` when the span carries one. Elastic's
+  /// own `elastic-apm-traceparent` is deprecated and deliberately never sent.
+  ///
+  /// Empty when the span has already ended, when the Agent is not running, or when
+  /// the call failed. The caller then sends an uncorrelated request rather than no
+  /// request at all.
+  Future<Map<String, String>> traceContextHeaders() {
+    // The Agent dropped this span from its registry when it ended, so it has no
+    // context left to hand back.
+    if (_ended) return Future.value(const {});
+
+    return fetchStringMap('spanTraceContext', <String, Object?>{
+      'shadowId': shadowId,
+    });
+  }
+
   /// Attaches a string attribute.
   ///
   /// Keys the Plugin's own instrumentation emits come from the Elastic Mobile

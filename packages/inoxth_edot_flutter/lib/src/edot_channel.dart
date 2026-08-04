@@ -43,3 +43,34 @@ void sendOneWay(String method, Map<String, Object?> arguments) {
     }),
   );
 }
+
+/// Asks the Agent for a map of strings and waits for it.
+///
+/// The exception ADR-0002 allows to [sendOneWay]: some answers only the Agent has,
+/// and Trace Context is one — it is built from the real trace and span ids, which
+/// live on the Agent's side of the channel.
+///
+/// A failure, or a reply that is not a map of strings, yields an empty map. Callers
+/// use this on the path of a request the app is about to make, and no telemetry
+/// fault is worth failing that request over.
+Future<Map<String, String>> fetchStringMap(
+  String method,
+  Map<String, Object?> arguments,
+) async {
+  try {
+    final reply = await edotChannel.invokeMapMethod<String, String>(
+      method,
+      arguments,
+    );
+    if (reply == null) return const {};
+
+    // Copied rather than returned as it arrives: `invokeMapMethod` casts lazily, so
+    // a value that is not a string would throw at the caller's first read — past
+    // this try, and on the path of their request. Copying moves that failure here,
+    // where it is logged and answered with nothing.
+    return Map<String, String>.of(reply);
+  } catch (error) {
+    edotLog('channel call "$method" failed: $error');
+    return const {};
+  }
+}

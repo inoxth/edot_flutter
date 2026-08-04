@@ -13,16 +13,22 @@ class EdotTracingRules {
     required this.collectorHost,
     this.urlSanitizer,
     this.excludedUrls = const [],
+    this.tracePropagationTargets,
   });
 
   EdotTracingRules.fromConfig(EdotConfig config)
     : collectorHost = config.collectorHost,
       urlSanitizer = config.urlSanitizer,
-      excludedUrls = config.excludedUrls;
+      excludedUrls = config.excludedUrls,
+      tracePropagationTargets = config.tracePropagationTargets;
 
   final String collectorHost;
   final String Function(String url)? urlSanitizer;
   final List<Pattern> excludedUrls;
+
+  /// Null means every traced host, which is not the same as an empty list. See
+  /// [EdotConfig.tracePropagationTargets].
+  final List<Pattern>? tracePropagationTargets;
 }
 
 /// The rules in force, or null before the Plugin has started.

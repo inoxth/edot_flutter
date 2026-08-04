@@ -156,6 +156,43 @@ void main() {
     });
   });
 
+  group('Trace Context targets', () {
+    test('propagates everywhere when unset', () {
+      // The Agents' own instrumentation propagates to every host, and a Dart layer
+      // that quietly did less would mean two rules to document for one app.
+      expect(shouldPropagate('https://api.example.com/x', null), isTrue);
+    });
+
+    test('propagates nowhere for an empty list', () {
+      // Not the same as unset. This is the only way to turn propagation off.
+      expect(shouldPropagate('https://api.example.com/x', const []), isFalse);
+    });
+
+    test('matches a substring and a regular expression', () {
+      expect(
+        shouldPropagate('https://api.example.com/x', ['api.example.com']),
+        isTrue,
+      );
+      expect(
+        shouldPropagate('https://third-party.test/x', ['api.example.com']),
+        isFalse,
+      );
+      expect(
+        shouldPropagate('https://orders.internal.test/x', [
+          RegExp(r'\.internal\.test/'),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('matches against the URL as given, query string included', () {
+      expect(
+        shouldPropagate('https://api.example.com/x?probe=1', ['probe=1']),
+        isTrue,
+      );
+    });
+  });
+
   group('derived attributes', () {
     test('reports the path as the target', () {
       expect(httpTarget('https://api.example.com/v1/orders'), '/v1/orders');

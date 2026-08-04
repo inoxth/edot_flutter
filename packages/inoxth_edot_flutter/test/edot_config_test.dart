@@ -174,6 +174,23 @@ void main() {
       expect(config.toString(), isNot(contains('token-value')));
     });
 
+    test('toString tells unset propagation targets from none at all', () {
+      // The two are opposites — every host, or no host — and both would print as a
+      // number nobody could tell apart. This string is what a debug dump shows
+      // someone asking why their traces stopped joining up.
+      expect(validConfig().toString(), contains('all hosts'));
+      expect(
+        EdotConfig(
+          serviceName: 'a',
+          serviceVersion: '1',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+          tracePropagationTargets: const [],
+        ).toString(),
+        contains('0 pattern(s)'),
+      );
+    });
+
     // That the credential still reaches native is asserted in edot_span_test.dart
     // through the initialize channel call, so config encoding stays off the
     // public API rather than being exposed just to be testable.

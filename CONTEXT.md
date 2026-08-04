@@ -43,6 +43,14 @@ _Avoid_: route path, screen title, URL
 A header on an outgoing request signalling that the Plugin has already created a span for it.
 _Avoid_: dedup header, sentinel header
 
+**Trace Context**:
+The W3C headers that carry a span's real trace and span identifiers onto an outgoing request, so the work it causes elsewhere joins this app's trace.
+_Avoid_: traceparent, distributed tracing headers, correlation id
+
+**Propagation Target**:
+A pattern naming a request that may carry Trace Context. Unset means every traced request.
+_Avoid_: allowlist, trusted host, propagation scope
+
 **Collector Host**:
 The host of the configured server URL. Requests to it are never traced, at any path or port.
 _Avoid_: APM server, endpoint, backend

@@ -19,6 +19,7 @@ import io.opentelemetry.api.logs.Severity
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.api.trace.StatusCode
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.resources.Resource
 import java.util.concurrent.ConcurrentHashMap
@@ -97,6 +98,7 @@ class InoxthEdotFlutterPlugin :
 
             "spanRecordException" -> recordException(call, result)
             "spanMarkFailed" -> markFailed(call, result)
+            "spanTraceContext" -> spanTraceContext(call, result)
 
             "emitLog" -> emitLog(call, result)
             "recordMetric" -> recordMetric(call, result)
@@ -280,6 +282,42 @@ class InoxthEdotFlutterPlugin :
             // something the caller told us.
             span.addEvent("exception", attributes.build())
         }
+    }
+
+    /**
+     * Replies with the W3C Trace Context headers for a Shadow Span.
+     *
+     * The one call Dart waits for (ADR-0002): the real trace and span ids are here,
+     * not in Dart.
+     *
+     * Built by the propagator rather than formatted by hand, so the header is
+     * whatever this OpenTelemetry version says W3C means — and so `tracestate`
+     * comes along when the span carries one. It writes only its own fields, which
+     * is also what keeps the deprecated `elastic-apm-traceparent` out.
+     *
+     * An empty map for an unknown span, which Dart treats as "no context": the
+     * request goes out uncorrelated rather than not at all.
+     */
+    private fun spanTraceContext(
+        call: MethodCall,
+        result: Result
+    ) {
+        val shadowId = call.requireString("shadowId")
+        val span = spans[shadowId]
+
+        if (span == null) {
+            log("spanTraceContext for unknown shadow id '$shadowId'; no context returned")
+            result.success(emptyMap<String, String>())
+            return
+        }
+
+        val headers = mutableMapOf<String, String>()
+        W3CTraceContextPropagator.getInstance().inject(
+            Context.root().with(span),
+            headers
+        ) { carrier, key, value -> carrier?.put(key, value) }
+
+        result.success(headers)
     }
 
     private fun markFailed(
