@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import 'edot_active_view.dart';
 import 'edot_channel.dart';
+import 'edot_ids.dart';
 
 /// Zone key holding the ambient parent span.
 ///
@@ -38,18 +39,6 @@ class EdotTracer {
 
   static DateTime _utcNow() => DateTime.now().toUtc();
 
-  /// Random per-process prefix, so identifiers from two runs cannot collide in
-  /// the Agent's registry if one outlives a hot restart.
-  static final String _idPrefix = () {
-    final random = Random.secure();
-    return List.generate(
-      4,
-      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-    ).join();
-  }();
-
-  static int _idCounter = 0;
-
   /// The span that [startSpan] would nest under right now, if any.
   ///
   /// Set by [runWithParent] and inherited across `await` boundaries.
@@ -82,12 +71,15 @@ class EdotTracer {
   /// The returned span is already registered with the Agent — this does not
   /// await, so a dropped span surfaces in debug logs rather than as an exception
   /// at the call site.
+  ///
+  /// The span records the Active View as it is *now*. A span that outlives a
+  /// navigation still belongs to the screen it began on.
   EdotSpan startSpan(String name, {EdotSpan? parent}) {
     if (name.trim().isEmpty) {
       throw ArgumentError.value(name, 'name', 'span name must not be blank');
     }
 
-    final shadowId = '$_idPrefix-${_idCounter++}';
+    final shadowId = newLocalId();
     final startedAt = _now();
     final resolvedParent = parent ?? ambientParent;
 
@@ -100,6 +92,9 @@ class EdotTracer {
       // ending a parent before its children is a caller bug, and silently
       // re-rooting it here would hide that rather than surface it.
       'parentShadowId': resolvedParent?.shadowId,
+      // Applied before the span starts, so sampling and processors see them.
+      // Attributes set afterwards would arrive too late for that.
+      'attributes': activeViewAttributes(),
     });
 
     return EdotSpan._(

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
 import 'edot_config.dart';
 import 'edot_signals.dart';
@@ -56,6 +57,30 @@ abstract final class Edot {
     return tracer;
   }
 
+  /// The screen currently visible to the user, or null when none is set.
+  static active_view.EdotActiveView? get activeView => active_view.activeView;
+
+  /// Records which screen the user is now on, so subsequent telemetry can be
+  /// attributed to it.
+  ///
+  /// Navigation sets this for you. Call it yourself where switching screens pushes
+  /// no route and so cannot be observed — bottom navigation bars and in-page
+  /// switchers.
+  ///
+  /// Usable before [start]: the first screen is often visible before the Agent has
+  /// finished starting, and requiring otherwise would force apps to sequence
+  /// navigation behind telemetry.
+  ///
+  /// Each call is a fresh entry and gets its own identifier, including a repeat
+  /// entry to a screen already named. Throws [ArgumentError] on a blank name.
+  static void setActiveView(String name) => active_view.setActiveView(name);
+
+  /// Forgets the Active View, for leaving all screens.
+  ///
+  /// Subsequent telemetry omits the screen attributes rather than reporting the
+  /// last screen the user happened to be on.
+  static void clearActiveView() => active_view.clearActiveView();
+
   /// Emits a structured log record.
   ///
   /// For events that are not operations. Fire-and-forget, like span creation
@@ -63,6 +88,10 @@ abstract final class Edot {
   ///
   /// [attributes] may hold `String`, `int`, `double` or `bool` values, and their
   /// types survive to the collector. Anything else throws [ArgumentError].
+  ///
+  /// The record also carries the current [activeView]'s screen attributes, unless
+  /// [attributes] sets those keys itself — an explicit value from the caller wins,
+  /// because otherwise the call would silently do nothing.
   ///
   /// Note that [flush] does **not** drain log records on iOS — see its
   /// documentation before relying on one having left the device.
@@ -76,7 +105,10 @@ abstract final class Edot {
     sendOneWay('emitLog', <String, Object?>{
       'severity': severity.name,
       'message': message,
-      'attributes': encodeLogAttributes(attributes),
+      'attributes': encodeLogAttributes({
+        ...active_view.activeViewAttributes(),
+        ...attributes,
+      }),
     });
   }
 
@@ -150,5 +182,6 @@ abstract final class Edot {
   static void resetForTesting() {
     _tracer = null;
     debugLoggingEnabled = false;
+    active_view.clearActiveView();
   }
 }

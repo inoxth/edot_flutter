@@ -154,16 +154,7 @@ class InoxthEdotFlutterPlugin :
         // accepts nothing else, and differing dimension types across platforms
         // would stop one dashboard serving both fleets. Dart's type already
         // guarantees this, so no conversion happens here.
-        val attributes = Attributes.builder()
-        call.argument<Map<String, Any?>>("attributes")?.forEach { (key, raw) ->
-            val text = raw as? String
-            if (text == null) {
-                log("recordMetric: dropping non-string dimension '$key'")
-            } else {
-                attributes.put(AttributeKey.stringKey(key), text)
-            }
-        }
-        val dimensions = attributes.build()
+        val dimensions = decodeStringAttributes(call.argument("attributes"))
 
         // A new instrument per call, which is what "no instrument registry" costs.
         // OpenTelemetry identifies instruments by name, so repeated builds feed one
@@ -438,8 +429,29 @@ class InoxthEdotFlutterPlugin :
             builder.setNoParent()
         }
 
+        // Applied before startSpan so samplers and processors see them. Dart owns
+        // which attributes these are and what they are called — the Elastic Mobile
+        // Attribute Set lives there (ADR-0003, ADR-0004), not in two native files.
+        builder.setAllAttributes(decodeStringAttributes(call.argument("attributes")))
+
         spans[shadowId] = builder.startSpan()
         result.success(null)
+    }
+
+    /** Decodes a plain string-valued attribute map. */
+    private fun decodeStringAttributes(raw: Map<String, Any?>?): Attributes {
+        val builder = Attributes.builder()
+
+        raw?.forEach { (key, value) ->
+            val text = value as? String
+            if (text == null) {
+                log("dropping non-string attribute '$key'")
+            } else {
+                builder.put(AttributeKey.stringKey(key), text)
+            }
+        }
+
+        return builder.build()
     }
 
     private fun spanEnd(

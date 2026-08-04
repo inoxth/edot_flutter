@@ -53,6 +53,7 @@ cd packages/inoxth_edot_flutter/example
 dart run tool/verify_tracer_bullet.dart -d <device>
 dart run tool/verify_span_enrichment.dart -d <device>
 dart run tool/verify_span_parenting.dart -d <device>
+dart run tool/verify_screen_attribution.dart -d <device>
 dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, ADR-0006
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
 ```

@@ -133,18 +133,7 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     // String-valued only, and here that is the platform talking rather than a
     // simplification: this Agent is on the deprecated meter provider, whose only
     // label API takes [String: String] (ADR-0012). Dart's type already enforces it.
-    //
-    // Decoded key by key rather than casting the map whole, because one bad value
-    // would fail a whole-map cast and take every other dimension down with it —
-    // losing them all, silently, over a single offender.
-    var dimensions: [String: String] = [:]
-    for (key, raw) in (args["attributes"] as? [String: Any]) ?? [:] {
-      guard let text = raw as? String else {
-        log("recordMetric: dropping non-string dimension '\(key)'")
-        continue
-      }
-      dimensions[key] = text
-    }
+    let dimensions = decodeStringAttributes(args["attributes"])
 
     let meter = OpenTelemetry.instance.meterProvider
       .get(instrumentationName: Self.instrumentationScope, instrumentationVersion: nil)
@@ -504,11 +493,36 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       builder.setNoParent()
     }
 
+    // Applied before startSpan so samplers and processors see them. Dart owns
+    // which attributes these are and what they are called — the Elastic Mobile
+    // Attribute Set lives there (ADR-0003, ADR-0004), not in two native files.
+    for (key, value) in decodeStringAttributes(args["attributes"]) {
+      builder.setAttribute(key: key, value: value)
+    }
+
     spansLock.lock()
     spans[shadowId] = builder.startSpan()
     spansLock.unlock()
 
     result(nil)
+  }
+
+  /// Decodes a plain string-valued attribute map.
+  ///
+  /// Key by key rather than casting the map whole, because one bad value would fail
+  /// a whole-map cast and take every other attribute down with it.
+  private func decodeStringAttributes(_ raw: Any?) -> [String: String] {
+    var decoded: [String: String] = [:]
+
+    for (key, value) in (raw as? [String: Any]) ?? [:] {
+      guard let text = value as? String else {
+        log("dropping non-string attribute '\(key)'")
+        continue
+      }
+      decoded[key] = text
+    }
+
+    return decoded
   }
 
   private func spanEnd(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {

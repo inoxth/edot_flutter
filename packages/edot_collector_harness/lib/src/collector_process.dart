@@ -63,9 +63,20 @@ class CollectorProcess {
   }
 
   /// Reads everything exported so far.
+  ///
+  /// Only whole lines. The collector appends while this reads, so the last line
+  /// can be half-written — and [CollectorOutput.parse] throws on a malformed line
+  /// by design, which would otherwise turn a mid-write read into a spurious
+  /// failure. An unterminated final line has not finished being written, so it is
+  /// not yet a line; the next poll will see it complete.
   CollectorOutput read() {
     if (!outputFile.existsSync()) return CollectorOutput.parse(const []);
-    return CollectorOutput.parse(outputFile.readAsLinesSync());
+
+    final content = outputFile.readAsStringSync();
+    final lines = content.split('\n');
+    if (!content.endsWith('\n') && lines.isNotEmpty) lines.removeLast();
+
+    return CollectorOutput.parse(lines);
   }
 
   /// Waits until [predicate] is satisfied by the exported telemetry.
