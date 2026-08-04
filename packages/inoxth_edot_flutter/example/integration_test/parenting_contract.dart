@@ -25,3 +25,12 @@ const String flowTwoChildName = 'parenting-flow-two-child';
 /// Child given an explicit parent while a different one is ambient.
 const String explicitParentName = 'parenting-explicit-parent';
 const String explicitChildName = 'parenting-explicit-child';
+
+/// A parent that has already ended, and a child named it anyway.
+///
+/// The Agent drops a span from its registry when it ends, so it can no longer be
+/// a parent. The child becomes a root and the Agent logs it — ending a parent
+/// before its children is a caller bug, and silently re-rooting without a trace
+/// of why would hide it.
+const String endedParentName = 'parenting-ended-parent';
+const String orphanedChildName = 'parenting-orphaned-child';

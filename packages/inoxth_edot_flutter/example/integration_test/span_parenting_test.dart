@@ -73,6 +73,12 @@ void main() {
     });
     explicitParent.end();
 
+    // Naming a parent that has already ended. The Agent no longer holds it, so
+    // the child must become a root rather than silently attaching to something.
+    final endedParent = Edot.tracer.startSpan(endedParentName);
+    endedParent.end();
+    Edot.tracer.startSpan(orphanedChildName, parent: endedParent).end();
+
     await Edot.flush();
 
     if (Platform.isIOS) {

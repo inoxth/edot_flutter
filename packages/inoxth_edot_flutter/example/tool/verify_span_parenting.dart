@@ -72,6 +72,8 @@ const _allNames = <String>[
   flowTwoChildName,
   explicitParentName,
   explicitChildName,
+  endedParentName,
+  orphanedChildName,
 ];
 
 Future<int> _runDeviceHalf(List<String> args) async {
@@ -139,6 +141,24 @@ void _assertNesting(CollectorOutput output) {
     output.spanNamed(explicitParentName),
     'explicit parent overriding the ambient one',
   );
+
+  // Naming a parent that has already ended. The Agent has dropped it from its
+  // registry, so the child must land as a root in its own trace rather than
+  // attaching to whatever happened to be current on the receiving thread.
+  final endedParent = output.spanNamed(endedParentName);
+  final orphan = output.spanNamed(orphanedChildName);
+  if (orphan.parentSpanId != null) {
+    _failures.add(
+      '$orphanedChildName named an already-ended parent and got parent '
+      '${orphan.parentSpanId}, expected to be a root',
+    );
+  }
+  if (orphan.traceId == endedParent.traceId) {
+    _failures.add(
+      '$orphanedChildName shares trace ${orphan.traceId} with the ended '
+      '$endedParentName, so it was attached to it after all',
+    );
+  }
 }
 
 void _expectChildOf(ExportedSpan child, ExportedSpan parent, String what) {

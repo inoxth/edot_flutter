@@ -178,20 +178,42 @@ void main() {
       expect(parentOf('lonely'), isNull);
     });
 
-    test('an ambient scope does not leak across independent zones', () async {
-      // runZoned without a parent scope must not inherit one from the caller's
-      // zone by accident.
+    test('a plain nested zone still sees the ambient parent', () async {
+      // Zone values are inherited by child zones, so forking a zone for some
+      // unrelated purpose inside a scope must not sever parenting.
       await startPlugin();
       final parent = Edot.tracer.startSpan('parent');
 
       Edot.tracer.runWithParent(parent, () {
         runZoned(() {
-          // Still inside the parent's zone, so this one *is* a child.
           Edot.tracer.startSpan('nested-zone-child').end();
         });
       });
 
       expect(parentOf('nested-zone-child'), parent.shadowId);
+    });
+
+    test('a scope does not leak into concurrent work outside it', () async {
+      // The complement of the interleaving test: unscoped work running while a
+      // scope is open must stay a root. If the ambient parent were held anywhere
+      // other than the zone, this is where it would leak.
+      await startPlugin();
+      final parent = Edot.tracer.startSpan('parent');
+
+      final scoped = Edot.tracer.runWithParent(parent, () async {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        Edot.tracer.startSpan('inside-scope').end();
+      });
+
+      final unscoped = Future<void>(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        Edot.tracer.startSpan('outside-scope').end();
+      });
+
+      await Future.wait([scoped, unscoped]);
+
+      expect(parentOf('inside-scope'), parent.shadowId);
+      expect(parentOf('outside-scope'), isNull);
     });
   });
 }

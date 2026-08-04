@@ -290,20 +290,18 @@ class InoxthEdotFlutterPlugin :
         // span as its parent is precisely the plausible-but-wrong tree this
         // design avoids. ADR-0002: native Context is thread-local and has no link
         // back to the Dart caller.
-        val parent = call.argument<String>("parentShadowId")?.let { parentShadowId ->
-            spans[parentShadowId].also {
-                if (it == null) {
-                    // Ended before its child started, which is a caller bug.
-                    // Logged rather than hidden; the span becomes a root.
-                    log("parent shadow id '$parentShadowId' is not active; starting a root")
-                }
-            }
-        }
+        val parentShadowId = call.argument<String>("parentShadowId")
+        val parent = parentShadowId?.let { spans[it] }
 
-        if (parent == null) {
-            builder.setNoParent()
-        } else {
+        if (parent != null) {
             builder.setParent(Context.root().with(parent))
+        } else {
+            if (parentShadowId != null) {
+                // Ended before its child started, which is a caller bug. Logged
+                // rather than hidden; the span becomes a root.
+                log("parent shadow id '$parentShadowId' is not active; starting a root")
+            }
+            builder.setNoParent()
         }
 
         spans[shadowId] = builder.startSpan()
