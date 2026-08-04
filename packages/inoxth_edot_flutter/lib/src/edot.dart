@@ -1,7 +1,14 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 
 import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
+import 'edot_errors.dart';
+// Imported a second time under a prefix so [Edot.isolateErrorPort] can forward to the
+// library getter of the same name. Unprefixed, the name inside the getter's own body
+// would resolve to the getter, and the forward would recurse.
+import 'edot_errors.dart' as errors show isolateErrorPort;
 import 'edot_http_overrides.dart';
 import 'edot_config.dart';
 import 'edot_signals.dart';
@@ -52,6 +59,14 @@ abstract final class Edot {
       installHttpOverrides();
       edotLog('tracing all dart:io traffic');
     }
+
+    // Automatic, not opt-in: since Flutter 3.3 an uncaught async error can be caught
+    // without a guarded zone, so there is nothing for the app to restructure (ADR-0008).
+    //
+    // EdotErrorBoundary's own hook is deliberately not installed here. It claims it
+    // while a boundary is mounted, so an app without one keeps the error display it
+    // always had.
+    installErrorHandlers();
 
     edotLog('agent started');
   }
@@ -122,6 +137,28 @@ abstract final class Edot {
       }),
     });
   }
+
+  /// Reports an error the app caught and handled.
+  ///
+  /// For a failure the app dealt with but still wants to know about — a retry that gave
+  /// up, a response that would not parse. Recorded exactly as an automatically captured
+  /// Dart Error is, with `error.source` saying the app reported it, so both arrive in
+  /// one place and neither counts towards crash-free rate (ADR-0008).
+  ///
+  /// Records against the operation in flight, if the caller established one with
+  /// [EdotTracer.runWithParent].
+  static void reportError(Object error, {StackTrace? stackTrace}) =>
+      captureError(error, stackTrace, EdotErrorSource.dartReported);
+
+  /// The port an isolate reports its errors to.
+  ///
+  /// Pass it to `Isolate.spawn`'s `onError` for a spawned isolate's uncaught errors to
+  /// be captured. A spawned isolate reports only to the ports its spawner gave it, so
+  /// this is the one thing an app has to wire up itself. `Isolate.run` and `compute`
+  /// need nothing — their failures come back as a failed future.
+  ///
+  /// Null before [start].
+  static SendPort? get isolateErrorPort => errors.isolateErrorPort;
 
   /// Records a metric value.
   ///
@@ -196,5 +233,6 @@ abstract final class Edot {
     active_view.clearActiveView();
     clearTracingRules();
     uninstallHttpOverrides();
+    uninstallErrorHandlers();
   }
 }

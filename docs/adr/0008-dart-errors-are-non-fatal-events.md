@@ -26,8 +26,14 @@ records the exception and takes error status.
 
 Native Crashes remain a separate signal and the only input to crash-free rate.
 
+The error boundary widget's own global hook, `ErrorWidget.builder`, is **not** claimed at
+initialisation. It is claimed while a boundary is mounted and released when the last one goes.
+
 ## Consequences
 
 - Crash-free rate reflects Native Crashes only. Dart Errors are queried as error events. This distinction must be explicit in the docs, because it is the opposite of what most users assume.
 - The Plugin takes over global error handlers at initialisation. Chaining makes coexistence with Crashlytics or Sentry safe for Dart-level errors; signal-level contention is a separate matter, see ADR-0009.
+- **An app with no boundary keeps the error display it always had**, and — the reason this is worth stating — so does a widget test. `flutter_test` fails any test that ends with `ErrorWidget.builder` changed, so claiming the hook at initialisation would break every widget test an integrator writes that starts the Agent, including this Plugin's own device-side suites. The cost is that the boundary widget is stateful and the hook is reference-counted, which is more machinery than one assignment at start.
+- **The isolate port is registered on spawned isolates only**, by the app passing it to `Isolate.spawn`. Registering it on the current isolate as well would report some of that isolate's uncaught errors twice, once as `dart_uncaught` and again as `dart_isolate`, and neither copy would look wrong. The cost is one line of wiring the app has to write; `Isolate.run` and `compute` need none, because their failures surface as failed futures.
+- **An isolate error's `exception.type` is `IsolateError`.** An error crosses an isolate boundary already formatted, so its Dart type is gone before anything can read it, and reporting the type of what arrived would put `String` on every one of them.
 - Dart stack traces are not symbolicated. Release builds using `--obfuscate --split-debug-info` produce unreadable frames and Elastic performs no Dart de-obfuscation. The React Native SDK ships a source-map upload CLI for the equivalent problem; a Dart symbol-upload tool is deferred.

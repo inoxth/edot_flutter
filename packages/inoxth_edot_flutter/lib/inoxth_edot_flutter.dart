@@ -35,6 +35,10 @@ export 'src/edot_config.dart'
         EdotNoAuth,
         EdotSecretTokenAuth,
         ExportProtocol;
+export 'src/edot_error_boundary.dart' show EdotErrorBoundary;
+// EdotErrorSource is deliberately *not* exported. Nothing public takes one —
+// `Edot.reportError` always reports as the app — so it would be surface with no caller.
+// The `error.source` values an integrator queries on belong in the documentation.
 export 'src/edot_http_client.dart' show EdotHttpClient;
 // EdotRequestTrace is deliberately *not* exported here. It is what an integration
 // package is built on, not something an app needs, and it lives in

@@ -55,8 +55,10 @@ dart run tool/verify_span_enrichment.dart -d <device>
 dart run tool/verify_span_parenting.dart -d <device>
 dart run tool/verify_screen_attribution.dart -d <device>
 dart run tool/verify_network.dart -d <device>
+dart run tool/verify_trace_context.dart -d <device>
 dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, ADR-0006
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
+dart run tool/verify_error.dart -d <android-device>                 # Android only, ADR-0011
 ```
 
 Each host half exits 2 with an explanation when Docker is absent, rather than
