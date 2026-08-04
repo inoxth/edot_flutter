@@ -40,6 +40,7 @@ export 'src/edot_error_boundary.dart' show EdotErrorBoundary;
 // `Edot.reportError` always reports as the app — so it would be surface with no caller.
 // The `error.source` values an integrator queries on belong in the documentation.
 export 'src/edot_http_client.dart' show EdotHttpClient;
+export 'src/edot_navigator_observer.dart' show EdotNavigatorObserver;
 // EdotRequestTrace is deliberately *not* exported here. It is what an integration
 // package is built on, not something an app needs, and it lives in
 // `instrumentation.dart` so this surface stays the one an app developer reads.

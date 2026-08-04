@@ -20,14 +20,18 @@ Emit the Elastic Mobile Attribute Set, matching the React Native SDK exactly:
 |---|---|
 | HTTP | `http.method`, `http.url`, `http.target`, `http.scheme`, `http.status_code`, `http.request_body.size`, `http.response_body.size`, `http.client` |
 | Network peer | `net.peer.name`, `net.peer.port` |
-| Screens | `screen.name`, `screen.id` |
-| Errors | `exception.type`, `exception.message`, `exception.stacktrace`, `error.source` |
+| Screens | `screen.name`, `screen.id`, `last.screen.name` |
+| Errors | `event.name`, `exception.type`, `exception.message`, `exception.stacktrace`, `error.source` |
 | Identity | `user.id` |
 
 Note `screen.name` / `screen.id` specifically. Upstream OpenTelemetry has a registered
 `app.screen.name` attribute, and OpenTelemetry Android's `ScreenAttributesSpanProcessor` uses it —
 but the React Native SDK uses `screen.name`, and `screen.id` (the Screen Span's identifier) has no
 upstream equivalent at all.
+
+`last.screen.name` appears on Screen Spans only, and only when the screen changed. `event.name` is
+`exception` on every error record. Neither has an upstream equivalent either; both are on this list
+because the React Native SDK emits them and a dashboard filtering on them has to find both fleets.
 
 ## Consequences
 
