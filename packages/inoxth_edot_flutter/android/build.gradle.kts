@@ -84,6 +84,9 @@ dependencies {
     // reasons the pin stands.
     implementation("co.elastic.otel.android:agent-sdk:1.1.0")
     implementation("io.opentelemetry:opentelemetry-api:1.51.0")
+    // Needed for Resource, to set both deployment.environment spellings through
+    // the Agent's resource interceptor. Same version as the API pin above.
+    implementation("io.opentelemetry:opentelemetry-sdk:1.51.0")
 
     // Native crash reporting is deliberately absent (ADR-0009). Android's
     // instrumentation discovery installs everything on the classpath with no
