@@ -4,6 +4,7 @@ import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
 import 'edot_config.dart';
 import 'edot_signals.dart';
+import 'edot_tracing_rules.dart';
 import 'edot_tracer.dart';
 
 /// Entry point to the Plugin.
@@ -42,6 +43,7 @@ abstract final class Edot {
     await edotChannel.invokeMethod<void>('initialize', encodeConfig(config));
 
     _tracer = EdotTracer();
+    setTracingRules(EdotTracingRules.fromConfig(config));
     edotLog('agent started');
   }
 
@@ -183,5 +185,6 @@ abstract final class Edot {
     _tracer = null;
     debugLoggingEnabled = false;
     active_view.clearActiveView();
+    clearTracingRules();
   }
 }

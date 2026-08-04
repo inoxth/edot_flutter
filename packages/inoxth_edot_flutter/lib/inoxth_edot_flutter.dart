@@ -35,5 +35,6 @@ export 'src/edot_config.dart'
         EdotNoAuth,
         EdotSecretTokenAuth,
         ExportProtocol;
+export 'src/edot_http_client.dart' show EdotHttpClient;
 export 'src/edot_signals.dart' show EdotMetricKind, EdotSeverity;
-export 'src/edot_tracer.dart' show EdotSpan, EdotTracer;
+export 'src/edot_tracer.dart' show EdotSpan, EdotSpanKind, EdotTracer;

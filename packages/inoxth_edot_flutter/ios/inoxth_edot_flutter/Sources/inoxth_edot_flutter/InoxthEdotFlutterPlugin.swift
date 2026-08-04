@@ -493,6 +493,8 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       builder.setNoParent()
     }
 
+    builder.setSpanKind(spanKind: spanKind(from: args["kind"] as? String))
+
     // Applied before startSpan so samplers and processors see them. Dart owns
     // which attributes these are and what they are called — the Elastic Mobile
     // Attribute Set lives there (ADR-0003, ADR-0004), not in two native files.
@@ -505,6 +507,20 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     spansLock.unlock()
 
     result(nil)
+  }
+
+  /// Maps the wire span kind onto OpenTelemetry's.
+  ///
+  /// Absent means internal, which is what every span was before an outbound
+  /// transport needed to say otherwise.
+  private func spanKind(from wire: String?) -> SpanKind {
+    switch wire {
+    case nil, "internal": return .internal
+    case "client": return .client
+    default:
+      log("unknown span kind '\(wire ?? "")'; recording as INTERNAL")
+      return .internal
+    }
   }
 
   /// Decodes a plain string-valued attribute map.

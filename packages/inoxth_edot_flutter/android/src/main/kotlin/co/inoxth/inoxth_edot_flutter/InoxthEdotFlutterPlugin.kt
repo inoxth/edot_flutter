@@ -17,6 +17,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.logs.Severity
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
 import io.opentelemetry.sdk.resources.Resource
@@ -429,6 +430,8 @@ class InoxthEdotFlutterPlugin :
             builder.setNoParent()
         }
 
+        builder.setSpanKind(spanKindFrom(call.argument("kind")))
+
         // Applied before startSpan so samplers and processors see them. Dart owns
         // which attributes these are and what they are called — the Elastic Mobile
         // Attribute Set lives there (ADR-0003, ADR-0004), not in two native files.
@@ -437,6 +440,22 @@ class InoxthEdotFlutterPlugin :
         spans[shadowId] = builder.startSpan()
         result.success(null)
     }
+
+    /**
+     * Maps the wire span kind onto OpenTelemetry's.
+     *
+     * Absent means internal, which is what every span was before an outbound
+     * transport needed to say otherwise.
+     */
+    private fun spanKindFrom(kind: String?): SpanKind =
+        when (kind) {
+            null, "internal" -> SpanKind.INTERNAL
+            "client" -> SpanKind.CLIENT
+            else -> {
+                log("unknown span kind '$kind'; recording as INTERNAL")
+                SpanKind.INTERNAL
+            }
+        }
 
     /** Decodes a plain string-valued attribute map. */
     private fun decodeStringAttributes(raw: Map<String, Any?>?): Attributes {

@@ -71,6 +71,8 @@ class EdotConfig {
     this.debug = false,
     this.disableAgent = false,
     this.android = const EdotAndroidConfig(),
+    this.urlSanitizer,
+    this.excludedUrls = const [],
   }) : collectorHost = _validate(
          serviceName: serviceName,
          serviceVersion: serviceVersion,
@@ -104,6 +106,27 @@ class EdotConfig {
   final bool disableAgent;
 
   final EdotAndroidConfig android;
+
+  /// Last chance to change a request URL before it is recorded.
+  ///
+  /// The query string, the fragment and any credentials in the authority are
+  /// already stripped before this runs, so use it to collapse what remains —
+  /// turning `/users/12345/orders` into `/users/{id}/orders`, typically, which also
+  /// keeps `http.url` low-cardinality.
+  ///
+  /// Dart-side only: it never crosses to the Agent, so it cannot reach spans the
+  /// Agent's own instrumentation produces.
+  final String Function(String url)? urlSanitizer;
+
+  /// Requests whose URL matches any of these are not traced at all.
+  ///
+  /// A `String` matches as a substring, a [RegExp] as a regular expression. For
+  /// health checks and polling, which otherwise flood the index with spans nobody
+  /// reads.
+  ///
+  /// Matched against the URL as given, query string included — excluding by a query
+  /// parameter is a normal thing to want.
+  final List<Pattern> excludedUrls;
 
   /// Host component of [serverUrl].
   ///
@@ -179,7 +202,12 @@ class EdotConfig {
         EdotNoAuth() => 'none',
       }}, exportProtocol: ${exportProtocol.name}, '
       'sessionSamplingRate: $sessionSamplingRate, debug: $debug, '
-      'disableAgent: $disableAgent)';
+      'disableAgent: $disableAgent, '
+      // Whether they are set, not what they are: a sanitiser is a closure with no
+      // useful representation, and the patterns are the first thing to suspect when
+      // a request is missing from Kibana.
+      'urlSanitizer: ${urlSanitizer == null ? 'none' : 'set'}, '
+      'excludedUrls: ${excludedUrls.length})';
 }
 
 /// Encodes [config] for the platform channel.

@@ -17,6 +17,19 @@ import 'edot_ids.dart';
 /// deliberately global singleton).
 final Object _ambientParentKey = Object();
 
+/// What kind of operation a span measures.
+///
+/// Only the two kinds this Plugin produces. A mobile app makes outbound calls and
+/// does local work; it does not serve requests or drive a message queue, so the
+/// remaining OpenTelemetry kinds would be values nothing could ever set.
+enum EdotSpanKind {
+  /// Local work. The default.
+  internal,
+
+  /// An outbound request, waiting on something remote.
+  client,
+}
+
 /// Creates spans.
 ///
 /// Under ADR-0002 the Agent is authoritative: it holds the real span, keyed by
@@ -74,7 +87,17 @@ class EdotTracer {
   ///
   /// The span records the Active View as it is *now*. A span that outlives a
   /// navigation still belongs to the screen it began on.
-  EdotSpan startSpan(String name, {EdotSpan? parent}) {
+  ///
+  /// [attributes] are applied before the span starts, so samplers and processors
+  /// see them; anything set afterwards arrives too late for that. They are merged
+  /// over the Active View's, which cannot collide with them in practice — the
+  /// screen keys are the Plugin's own.
+  EdotSpan startSpan(
+    String name, {
+    EdotSpan? parent,
+    EdotSpanKind kind = EdotSpanKind.internal,
+    Map<String, String> attributes = const {},
+  }) {
     if (name.trim().isEmpty) {
       throw ArgumentError.value(name, 'name', 'span name must not be blank');
     }
@@ -92,9 +115,10 @@ class EdotTracer {
       // ending a parent before its children is a caller bug, and silently
       // re-rooting it here would hide that rather than surface it.
       'parentShadowId': resolvedParent?.shadowId,
+      'kind': kind.name,
       // Applied before the span starts, so sampling and processors see them.
       // Attributes set afterwards would arrive too late for that.
-      'attributes': activeViewAttributes(),
+      'attributes': {...activeViewAttributes(), ...attributes},
     });
 
     return EdotSpan._(

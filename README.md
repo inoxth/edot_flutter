@@ -20,7 +20,7 @@ organisation's React Native apps (`@inoxth/react-native-edot-sdk`).
 
 | Package | Purpose |
 |---|---|
-| `packages/inoxth_edot_flutter` | Core: Dart API, both native implementations, `package:http` wrapper |
+| `packages/inoxth_edot_flutter` | Core: Dart API, both native implementations, `package:http` tracing |
 | `packages/inoxth_edot_flutter_dio` | Dio interceptor. Separate because Dart has no optional dependencies (ADR-0010) |
 | `packages/edot_collector_harness` | Seam 2 test harness. Never published |
 
@@ -54,6 +54,7 @@ dart run tool/verify_tracer_bullet.dart -d <device>
 dart run tool/verify_span_enrichment.dart -d <device>
 dart run tool/verify_span_parenting.dart -d <device>
 dart run tool/verify_screen_attribution.dart -d <device>
+dart run tool/verify_network.dart -d <device>
 dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, ADR-0006
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
 ```
