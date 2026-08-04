@@ -15,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.logs.Severity
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
@@ -96,9 +97,142 @@ class InoxthEdotFlutterPlugin :
             "spanRecordException" -> recordException(call, result)
             "spanMarkFailed" -> markFailed(call, result)
 
+            "emitLog" -> emitLog(call, result)
+            "recordMetric" -> recordMetric(call, result)
+
             "flush" -> flush(result)
             else -> result.notImplemented()
         }
+    }
+
+    private fun emitLog(
+        call: MethodCall,
+        result: Result
+    ) {
+        val agent = this.agent
+        if (agent == null) {
+            log("emitLog before initialize; dropped")
+            result.success(null)
+            return
+        }
+
+        val severity = call.requireString("severity")
+
+        agent
+            .getOpenTelemetry()
+            .logsBridge
+            .loggerBuilder(INSTRUMENTATION_SCOPE)
+            .build()
+            .logRecordBuilder()
+            .setSeverity(severityFrom(severity))
+            // Both the number and the text, because the number is what queries
+            // filter on and the text is what a human reads in Kibana.
+            .setSeverityText(severity)
+            .setBody(call.requireString("message"))
+            .setAllAttributes(decodeTaggedAttributes(call.argument("attributes")))
+            .emit()
+
+        result.success(null)
+    }
+
+    private fun recordMetric(
+        call: MethodCall,
+        result: Result
+    ) {
+        val agent = this.agent
+        if (agent == null) {
+            log("recordMetric before initialize; dropped")
+            result.success(null)
+            return
+        }
+
+        val meter = agent.getOpenTelemetry().getMeter(INSTRUMENTATION_SCOPE)
+        val name = call.requireString("name")
+        val value = call.requireDouble("value")
+
+        // String-valued only, per ADR-0012: the pinned iOS Agent's legacy meter
+        // accepts nothing else, and differing dimension types across platforms
+        // would stop one dashboard serving both fleets. Dart's type already
+        // guarantees this, so no conversion happens here.
+        val attributes = Attributes.builder()
+        call.argument<Map<String, Any?>>("attributes")?.forEach { (key, raw) ->
+            val text = raw as? String
+            if (text == null) {
+                log("recordMetric: dropping non-string dimension '$key'")
+            } else {
+                attributes.put(AttributeKey.stringKey(key), text)
+            }
+        }
+        val dimensions = attributes.build()
+
+        // A new instrument per call, which is what "no instrument registry" costs.
+        // OpenTelemetry identifies instruments by name, so repeated builds feed one
+        // stream rather than creating duplicates.
+        when (val kind = call.requireString("metricType")) {
+            "counter" ->
+                meter.counterBuilder(name).ofDoubles().build().add(value, dimensions)
+
+            "histogram" ->
+                meter.histogramBuilder(name).build().record(value, dimensions)
+
+            "upDownCounter" ->
+                meter
+                    .upDownCounterBuilder(name)
+                    .ofDoubles()
+                    .build()
+                    .add(value, dimensions)
+
+            else -> log("recordMetric: unknown metric kind '$kind'; dropped")
+        }
+
+        result.success(null)
+    }
+
+    /**
+     * Maps the wire severity onto OpenTelemetry's.
+     *
+     * The wire values are the React Native SDK's lowercase names, not
+     * OpenTelemetry's own spellings, so the mapping is explicit rather than a
+     * `valueOf` that would silently drift if either side renamed a level.
+     */
+    private fun severityFrom(severity: String): Severity =
+        when (severity) {
+            "trace" -> Severity.TRACE
+            "debug" -> Severity.DEBUG
+            "info" -> Severity.INFO
+            "warn" -> Severity.WARN
+            "error" -> Severity.ERROR
+            "fatal" -> Severity.FATAL
+            else -> {
+                log("unknown severity '$severity'; recording as INFO")
+                Severity.INFO
+            }
+        }
+
+    /**
+     * Decodes the type-tagged attribute list Dart sends for log records.
+     *
+     * The tag exists because a map of mixed values cannot carry its types to iOS,
+     * where every number arrives as an `NSNumber` that casts to either. Android
+     * could infer them, but the channel protocol is shared.
+     */
+    private fun decodeTaggedAttributes(raw: List<Map<String, Any?>>?): Attributes {
+        val builder = Attributes.builder()
+
+        raw?.forEach { attribute ->
+            val key = attribute["key"] as? String ?: return@forEach
+            val value = attribute["value"]
+
+            when (val type = attribute["type"]) {
+                "string" -> builder.put(AttributeKey.stringKey(key), value as String)
+                "int" -> builder.put(AttributeKey.longKey(key), (value as Number).toLong())
+                "double" -> builder.put(AttributeKey.doubleKey(key), value as Double)
+                "bool" -> builder.put(AttributeKey.booleanKey(key), value as Boolean)
+                else -> log("attribute '$key' has unknown type '$type'; dropped")
+            }
+        }
+
+        return builder.build()
     }
 
     /**

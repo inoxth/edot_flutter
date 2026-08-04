@@ -78,8 +78,150 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
         span.status = .error(description: args["description"] as? String ?? "")
       }
 
+    case "emitLog": emitLog(call, result)
+    case "recordMetric": recordMetric(call, result)
+
     case "flush": flush(result)
     default: result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func emitLog(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard started else {
+      log("emitLog before initialize; dropped")
+      result(nil)
+      return
+    }
+
+    guard let args = call.arguments as? [String: Any],
+          let severityName = args["severity"] as? String,
+          let message = args["message"] as? String
+    else {
+      log("emitLog with malformed arguments; dropped")
+      result(nil)
+      return
+    }
+
+    OpenTelemetry.instance.loggerProvider
+      .get(instrumentationScopeName: Self.instrumentationScope)
+      .logRecordBuilder()
+      .setSeverity(severity(from: severityName))
+      .setBody(.string(message))
+      .setAttributes(decodeTaggedAttributes(args["attributes"]))
+      .emit()
+
+    result(nil)
+  }
+
+  private func recordMetric(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    guard started else {
+      log("recordMetric before initialize; dropped")
+      result(nil)
+      return
+    }
+
+    guard let args = call.arguments as? [String: Any],
+          let name = args["name"] as? String,
+          let value = args["value"] as? Double,
+          let kind = args["metricType"] as? String
+    else {
+      log("recordMetric with malformed arguments; dropped")
+      result(nil)
+      return
+    }
+
+    // String-valued only, and here that is the platform talking rather than a
+    // simplification: this Agent is on the deprecated meter provider, whose only
+    // label API takes [String: String] (ADR-0012). Dart's type already enforces it.
+    //
+    // Decoded key by key rather than casting the map whole, because one bad value
+    // would fail a whole-map cast and take every other dimension down with it —
+    // losing them all, silently, over a single offender.
+    var dimensions: [String: String] = [:]
+    for (key, raw) in (args["attributes"] as? [String: Any]) ?? [:] {
+      guard let text = raw as? String else {
+        log("recordMetric: dropping non-string dimension '\(key)'")
+        continue
+      }
+      dimensions[key] = text
+    }
+
+    let meter = OpenTelemetry.instance.meterProvider
+      .get(instrumentationName: Self.instrumentationScope, instrumentationVersion: nil)
+
+    switch kind {
+    case "counter":
+      meter.createDoubleCounter(name: name).add(value: value, labels: dimensions)
+    case "histogram":
+      meter
+        .createDoubleHistogram(name: name, explicitBoundaries: nil, absolute: true)
+        .record(value: value, labels: dimensions)
+    case "upDownCounter":
+      // The legacy meter has no up-down instrument; a non-monotonic counter is
+      // the same thing under a different name.
+      meter
+        .createDoubleCounter(name: name, monotonic: false)
+        .add(value: value, labels: dimensions)
+    default:
+      log("recordMetric: unknown metric kind '\(kind)'; dropped")
+    }
+
+    result(nil)
+  }
+
+  /// Maps the wire severity onto OpenTelemetry's.
+  ///
+  /// The wire values are the React Native SDK's lowercase names rather than
+  /// OpenTelemetry's own spellings, so the mapping is explicit — a lookup by name
+  /// would drift silently if either side renamed a level.
+  private func severity(from wire: String) -> Severity {
+    switch wire {
+    case "trace": return .trace
+    case "debug": return .debug
+    case "info": return .info
+    case "warn": return .warn
+    case "error": return .error
+    case "fatal": return .fatal
+    default:
+      log("unknown severity '\(wire)'; recording as INFO")
+      return .info
+    }
+  }
+
+  /// Decodes the type-tagged attribute list Dart sends for log records.
+  ///
+  /// The tag is what makes an integer attribute recoverable here: Flutter delivers
+  /// every number as an `NSNumber`, which casts to `Int` and `Double` alike, so the
+  /// value alone cannot say which it is.
+  private func decodeTaggedAttributes(_ raw: Any?) -> [String: AttributeValue] {
+    guard let entries = raw as? [[String: Any]] else { return [:] }
+
+    var attributes: [String: AttributeValue] = [:]
+    for entry in entries {
+      guard let key = entry["key"] as? String, let type = entry["type"] as? String
+      else { continue }
+
+      // Dropping is the only option once the tag and the value disagree, but it is
+      // never silent: a caller who believes an attribute was recorded needs to be
+      // told it was not.
+      guard let value = Self.attributeValue(type: type, raw: entry["value"]) else {
+        log("attribute '\(key)' does not decode as '\(type)'; dropped")
+        continue
+      }
+
+      attributes[key] = value
+    }
+
+    return attributes
+  }
+
+  private static func attributeValue(type: String, raw: Any?) -> AttributeValue? {
+    switch type {
+    case "string": return (raw as? String).map(AttributeValue.string)
+    case "int": return (raw as? Int).map(AttributeValue.int)
+    case "double": return (raw as? Double).map(AttributeValue.double)
+    case "bool": return (raw as? Bool).map(AttributeValue.bool)
+    default: return nil
     }
   }
 
@@ -412,14 +554,18 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     // handler runs on the main thread, so waiting here would stall the UI on a
     // disk write. Dart awaits the reply either way.
     flushQueue.async {
-      // Traces and metrics only. The pinned OpenTelemetry Swift LoggerProviderSdk
-      // exposes no forceFlush and does not surface its processor, and the Agent
-      // builds that provider internally — so log records cannot be flushed here
-      // and still wait for their batch timer (ADR-0001). Dart documents this.
+      // Traces only, and that is everything this Agent can do (ADR-0011).
+      //
+      // Log records: LoggerProviderSdk exposes no forceFlush and does not surface
+      // its processor, and the Agent builds it internally.
+      //
+      // Metrics: the Agent registers the *deprecated* MeterProviderBuilder, so
+      // this is a MeterProviderSdk, which has no forceFlush either — it pushes on
+      // a 60-second interval held in a non-public property. An earlier version of
+      // this code cast to StableMeterProviderSdk, which the value never is, so it
+      // silently did nothing. Do not reinstate that cast without first checking
+      // the Agent has moved to the stable provider.
       (OpenTelemetry.instance.tracerProvider as? TracerProviderSdk)?.forceFlush()
-      if let meterProvider = OpenTelemetry.instance.meterProvider as? StableMeterProviderSdk {
-        _ = meterProvider.forceFlush()
-      }
 
       // Flutter requires the reply on the main thread.
       DispatchQueue.main.async { result(nil) }

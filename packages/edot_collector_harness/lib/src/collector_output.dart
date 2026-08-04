@@ -19,15 +19,27 @@ enum SpanKind {
   };
 }
 
+/// How a metric aggregates, as encoded in OTLP.
+enum MetricKind {
+  /// A counter or up-down counter — [ExportedMetric.isMonotonic] tells them apart.
+  sum,
+  gauge,
+  histogram,
+
+  /// A metric shape this harness does not decode (exponential histogram, summary).
+  unknown,
+}
+
 /// Telemetry read back from the collector's file exporter.
 ///
 /// The collector writes one JSON object per line, each an OTLP export request,
 /// so a single run's output is many lines covering many signals.
 class CollectorOutput {
-  CollectorOutput._(this.spans, this.logs);
+  CollectorOutput._(this.spans, this.logs, this.metrics);
 
   final List<ExportedSpan> spans;
   final List<ExportedLogRecord> logs;
+  final List<ExportedMetric> metrics;
 
   /// Parses collector file-exporter output.
   ///
@@ -37,6 +49,7 @@ class CollectorOutput {
   static CollectorOutput parse(Iterable<String> lines) {
     final spans = <ExportedSpan>[];
     final logs = <ExportedLogRecord>[];
+    final metrics = <ExportedMetric>[];
 
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
@@ -48,11 +61,10 @@ class CollectorOutput {
 
       _readResourceSpans(request['resourceSpans'], spans);
       _readResourceLogs(request['resourceLogs'], logs);
-      // Metric parsing lands with the logs-and-metrics ticket; unknown signals
-      // are ignored rather than treated as an error.
+      _readResourceMetrics(request['resourceMetrics'], metrics);
     }
 
-    return CollectorOutput._(spans, logs);
+    return CollectorOutput._(spans, logs, metrics);
   }
 
   /// Every span with this name, in export order.
@@ -78,6 +90,44 @@ class CollectorOutput {
 
   /// Distinct trace ids across all spans.
   Set<String> get traceIds => spans.map((s) => s.traceId).toSet();
+
+  /// Every log record with this body, in export order.
+  List<ExportedLogRecord> logsWithBody(Object? body) =>
+      logs.where((l) => l.body == body).toList();
+
+  /// The single log record with this body. Throws when absent or ambiguous, for
+  /// the same reason as [spanNamed].
+  ExportedLogRecord logWithBody(Object? body) {
+    final matches = logsWithBody(body);
+    if (matches.length != 1) {
+      throw StateError(
+        'Expected exactly one log record with body "$body", '
+        'found ${matches.length}. '
+        'Bodies present: ${logs.map((l) => l.body).toList()}',
+      );
+    }
+    return matches.single;
+  }
+
+  /// Every export of the metric with this name, in export order.
+  List<ExportedMetric> metricsNamed(String name) =>
+      metrics.where((m) => m.name == name).toList();
+
+  /// The most recent export of the metric with this name. Throws when absent.
+  ///
+  /// Unlike [spanNamed] this tolerates repeats rather than failing on them: a
+  /// metric reader re-exports every instrument once per collection cycle, so how
+  /// many copies arrive depends on how long the app stayed alive.
+  ExportedMetric metricNamed(String name) {
+    final matches = metricsNamed(name);
+    if (matches.isEmpty) {
+      throw StateError(
+        'No metric named "$name". '
+        'Metrics present: ${metrics.map((m) => m.name).toSet().toList()}',
+      );
+    }
+    return matches.last;
+  }
 
   static void _readResourceSpans(Object? node, List<ExportedSpan> out) {
     for (final resourceSpans in _asList(node)) {
@@ -138,6 +188,73 @@ class CollectorOutput {
     }
   }
 
+  static void _readResourceMetrics(Object? node, List<ExportedMetric> out) {
+    for (final resourceMetrics in _asList(node)) {
+      final resource = _attributes(
+        _asMap(resourceMetrics['resource'])['attributes'],
+      );
+
+      for (final scopeMetrics in _asList(resourceMetrics['scopeMetrics'])) {
+        final scopeName = _asMap(scopeMetrics['scope'])['name'] as String?;
+
+        for (final metric in _asList(scopeMetrics['metrics'])) {
+          final (kind, body) = _metricBody(metric);
+          out.add(
+            ExportedMetric(
+              name: metric['name'] as String? ?? '',
+              kind: kind,
+              isMonotonic: kind == MetricKind.sum
+                  ? body['isMonotonic'] as bool? ?? false
+                  : null,
+              points: _metricPoints(body['dataPoints']),
+              resource: resource,
+              scopeName: scopeName,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Reads a metric's aggregation and the node holding its data points.
+  ///
+  /// OTLP names the aggregation by which field is present rather than by a tag,
+  /// so the shape has to be discovered the same way [_anyValue] discovers a
+  /// value's type.
+  static (MetricKind, Map<String, Object?>) _metricBody(
+    Map<String, Object?> metric,
+  ) {
+    if (metric.containsKey('sum')) {
+      return (MetricKind.sum, _asMap(metric['sum']));
+    }
+    if (metric.containsKey('gauge')) {
+      return (MetricKind.gauge, _asMap(metric['gauge']));
+    }
+    if (metric.containsKey('histogram')) {
+      return (MetricKind.histogram, _asMap(metric['histogram']));
+    }
+    return (MetricKind.unknown, const <String, Object?>{});
+  }
+
+  static List<ExportedMetricPoint> _metricPoints(Object? node) => [
+    for (final point in _asList(node))
+      ExportedMetricPoint(
+        timeNanos: _int(point['timeUnixNano']) ?? 0,
+        attributes: _attributes(point['attributes']),
+        value: _pointValue(point),
+        count: _int(point['count']),
+        sum: _double(point['sum']),
+      ),
+  ];
+
+  /// The value of a sum or gauge point. Null on a histogram point, which reports
+  /// [ExportedMetricPoint.count] and [ExportedMetricPoint.sum] instead.
+  static double? _pointValue(Map<String, Object?> point) {
+    if (point.containsKey('asDouble')) return _double(point['asDouble']);
+    if (point.containsKey('asInt')) return _int(point['asInt'])?.toDouble();
+    return null;
+  }
+
   /// Decodes an OTLP KeyValue list into a plain map.
   static Map<String, Object?> _attributes(Object? node) {
     final decoded = <String, Object?>{};
@@ -166,10 +283,7 @@ class CollectorOutput {
   static Object? _anyValue(Map<String, Object?> value) {
     if (value.containsKey('stringValue')) return value['stringValue'];
     if (value.containsKey('intValue')) return _int(value['intValue']);
-    if (value.containsKey('doubleValue')) {
-      final raw = value['doubleValue'];
-      return raw is num ? raw.toDouble() : double.tryParse('$raw');
-    }
+    if (value.containsKey('doubleValue')) return _double(value['doubleValue']);
     if (value.containsKey('boolValue')) return value['boolValue'];
     if (value.containsKey('bytesValue')) return value['bytesValue'];
     if (value.containsKey('arrayValue')) {
@@ -187,6 +301,12 @@ class CollectorOutput {
     final int value => value,
     final String value => int.tryParse(value),
     final num value => value.toInt(),
+    _ => null,
+  };
+
+  static double? _double(Object? raw) => switch (raw) {
+    final num value => value.toDouble(),
+    final String value => double.tryParse(value),
     _ => null,
   };
 
@@ -306,4 +426,77 @@ class ExportedLogRecord {
   @override
   String toString() =>
       'ExportedLogRecord($severityText, body: $body, attributes: $attributes)';
+}
+
+/// A metric as it arrived at the collector.
+class ExportedMetric {
+  ExportedMetric({
+    required this.name,
+    required this.kind,
+    required this.isMonotonic,
+    required this.points,
+    required this.resource,
+    required this.scopeName,
+  });
+
+  final String name;
+  final MetricKind kind;
+
+  /// True for a counter, false for an up-down counter, null when [kind] is not
+  /// [MetricKind.sum] — which is the only way the two counters differ on the wire.
+  final bool? isMonotonic;
+
+  /// One point per distinct set of dimensions.
+  final List<ExportedMetricPoint> points;
+
+  /// Resource attributes of the export this metric arrived in.
+  final Map<String, Object?> resource;
+  final String? scopeName;
+
+  /// The only point. Throws when the metric carries several, so an assertion
+  /// written against "the" value cannot pass by picking an arbitrary dimension.
+  ExportedMetricPoint get point {
+    if (points.length != 1) {
+      throw StateError(
+        'Metric "$name" has ${points.length} data points. '
+        'Assert on `points` directly.',
+      );
+    }
+    return points.single;
+  }
+
+  @override
+  String toString() =>
+      'ExportedMetric($name, kind: ${kind.name}, '
+      'monotonic: $isMonotonic, points: $points)';
+}
+
+/// One data point of an [ExportedMetric].
+class ExportedMetricPoint {
+  ExportedMetricPoint({
+    required this.timeNanos,
+    required this.attributes,
+    required this.value,
+    required this.count,
+    required this.sum,
+  });
+
+  final int timeNanos;
+
+  /// The point's dimensions.
+  final Map<String, Object?> attributes;
+
+  /// The value of a sum or gauge point; null on a histogram point.
+  final double? value;
+
+  /// Recorded-value count on a histogram point; null otherwise.
+  final int? count;
+
+  /// Total of the recorded values on a histogram point; null otherwise.
+  final double? sum;
+
+  @override
+  String toString() => value != null
+      ? 'ExportedMetricPoint($value, attributes: $attributes)'
+      : 'ExportedMetricPoint(count: $count, sum: $sum, attributes: $attributes)';
 }

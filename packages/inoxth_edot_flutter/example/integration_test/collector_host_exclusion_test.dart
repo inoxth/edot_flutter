@@ -26,6 +26,15 @@ void main() {
   testWidgets('native requests to the Collector Host are not traced', (
     tester,
   ) async {
+    if (!Platform.isIOS) {
+      fail(
+        'This suite runs on iOS only. The exclusion is an iOS concern, and the '
+        'native request probe it drives exists only in the example app\'s iOS '
+        'runner — elsewhere it fails as a missing plugin, which reads like a '
+        'broken harness rather than a suite on the wrong platform.',
+      );
+    }
+
     await Edot.start(
       EdotConfig(
         serviceName: 'edot-flutter-seam2',

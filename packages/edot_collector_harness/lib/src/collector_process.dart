@@ -84,8 +84,10 @@ class CollectorProcess {
       if (DateTime.now().isAfter(deadline)) {
         throw TimeoutException(
           'Collector output did not satisfy the predicate within $timeout. '
-          'Saw ${latest.spans.length} span(s) and ${latest.logs.length} log(s): '
-          '${latest.spans.map((s) => s.name).toList()}',
+          'Saw ${latest.spans.length} span(s), ${latest.logs.length} log(s) and '
+          '${latest.metrics.length} metric(s).\n'
+          '  spans: ${latest.spans.map((s) => s.name).toList()}\n'
+          '  metrics: ${latest.metrics.map((m) => m.name).toSet().toList()}',
         );
       }
       await Future<void>.delayed(pollInterval);

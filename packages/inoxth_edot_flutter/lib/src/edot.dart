@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'edot_channel.dart';
 import 'edot_config.dart';
+import 'edot_signals.dart';
 import 'edot_tracer.dart';
 
 /// Entry point to the Plugin.
@@ -55,6 +56,62 @@ abstract final class Edot {
     return tracer;
   }
 
+  /// Emits a structured log record.
+  ///
+  /// For events that are not operations. Fire-and-forget, like span creation
+  /// (ADR-0002), so this does not await the Agent.
+  ///
+  /// [attributes] may hold `String`, `int`, `double` or `bool` values, and their
+  /// types survive to the collector. Anything else throws [ArgumentError].
+  ///
+  /// Note that [flush] does **not** drain log records on iOS — see its
+  /// documentation before relying on one having left the device.
+  static void log(
+    EdotSeverity severity,
+    String message, {
+    Map<String, Object> attributes = const {},
+  }) {
+    _requireStarted('emit a log record');
+
+    sendOneWay('emitLog', <String, Object?>{
+      'severity': severity.name,
+      'message': message,
+      'attributes': encodeLogAttributes(attributes),
+    });
+  }
+
+  /// Records a metric value.
+  ///
+  /// One call rather than an instrument registry: [kind] selects the instrument,
+  /// and the Agent's global meter provider owns it. Fire-and-forget, like [log].
+  ///
+  /// [attributes] are the metric's dimensions and are `String`-valued only. That
+  /// is a hard limit of the pinned iOS Agent's legacy meter, not a simplification
+  /// — see ADR-0012. Convert numeric dimensions at the call site.
+  static void recordMetric(
+    String name,
+    num value, {
+    EdotMetricKind kind = EdotMetricKind.counter,
+    Map<String, String> attributes = const {},
+  }) {
+    _requireStarted('record a metric');
+
+    sendOneWay('recordMetric', <String, Object?>{
+      'name': name,
+      // Always a double. The Agent's meter takes one, and sending a whole number
+      // as an int would leave the native side inferring a type it cannot infer.
+      'value': value.toDouble(),
+      'metricType': kind.name,
+      'attributes': attributes,
+    });
+  }
+
+  static void _requireStarted(String action) {
+    if (_tracer == null) {
+      throw StateError('Edot.start must complete before you can $action.');
+    }
+  }
+
   /// Drains the Agent's in-memory buffers.
   ///
   /// This does **not** promise the telemetry has reached the collector. What it
@@ -71,9 +128,13 @@ abstract final class Edot {
   ///   disabled, and its own worker uploads them seconds later. There is no
   ///   configuration that makes flush upload synchronously.
   ///
-  /// On iOS this covers traces and metrics only. The pinned OpenTelemetry Swift
-  /// logger provider exposes no flush and does not surface its processor, so log
-  /// records are not drained at all (ADR-0001).
+  /// Which signals it reaches also differs:
+  ///
+  /// - **Android** — traces, log records and metrics.
+  /// - **iOS** — traces only. The pinned logger provider exposes no flush and does
+  ///   not surface its processor, and the Agent is still on the deprecated meter
+  ///   provider, which has no flush either — its metrics leave on a 60-second
+  ///   timer that cannot be forced (ADR-0011).
   ///
   /// Because of all of the above, do not build a shutdown path that assumes
   /// telemetry has left the device once this returns.

@@ -1,6 +1,6 @@
 # flush() drains buffers; it does not promise delivery
 
-Status: accepted
+Status: accepted (amended — iOS flush covers traces only, see Amendment)
 
 ## Context
 
@@ -65,3 +65,29 @@ Agent's, which would duplicate every span.
   addition for a test-speed problem that is not yet a real cost.
 - Anyone bumping the iOS Agent pin should re-check whether `BatchWorker` has learned to call
   `spanExporter.flush()`. If it has, the iOS wait can be deleted and this ADR superseded.
+
+## Amendment — on iOS, flush covers traces only, not metrics
+
+This ADR and the original `flush()` implementation both claimed iOS flushed traces *and* metrics. That
+was wrong, and the code backing it never ran.
+
+`apm-agent-ios` 1.2.1 registers the **legacy** `MeterProviderBuilder`, so
+`OpenTelemetry.instance.meterProvider` is a `MeterProviderSdk` — deprecated, and exposing no
+`forceFlush`. The Plugin's flush cast to `StableMeterProviderSdk`, which that value never is, so the
+cast silently failed and no metric flush was ever attempted.
+
+There is no public path to force one. `MeterProviderSdk` holds its `PushMetricController` in a
+non-public property and pushes on `defaultPushInterval`, which is **60 seconds**; the Agent does not
+override it. `getMeters()` is internal too.
+
+So on iOS: traces are drained into the persistence buffer as described above, log records are not
+drained at all, and metrics are not drained either — they leave on the Agent's own 60-second timer.
+The dead cast is removed rather than left looking like it does something, and `Edot.flush()` documents
+traces only.
+
+This is also why the metrics tier asserts exported metrics on Android alone: a Seam 2 metric assertion
+on iOS would have to wait out a minute per run.
+
+Anyone bumping the iOS Agent pin should check whether it has moved to `StableMeterProviderBuilder`,
+which does expose `forceFlush`. See also ADR-0012, which records the other consequence of the Agent
+still being on the legacy meter: metric attributes can only be strings.

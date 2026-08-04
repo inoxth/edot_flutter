@@ -128,6 +128,64 @@ void main() {
     test('exposes resource attributes on log records', () {
       expect(output.logs.single.resource['session.id'], '5f2b1c9a');
     });
+
+    test('finds a record by body, failing loudly when it never arrived', () {
+      expect(output.logWithBody(output.logs.single.body).severityText, 'ERROR');
+      expect(output.logsWithBody('nope'), isEmpty);
+      expect(() => output.logWithBody('nope'), throwsStateError);
+    });
+  });
+
+  group('metrics', () {
+    test('distinguishes a counter from an up-down counter', () {
+      // The two are the same OTLP sum; only isMonotonic separates them, so a
+      // Seam 2 test asserting "this was a counter" has nothing else to look at.
+      expect(output.metricNamed('checkout.total').kind, MetricKind.sum);
+      expect(output.metricNamed('checkout.total').isMonotonic, isTrue);
+      expect(output.metricNamed('cart.items').isMonotonic, isFalse);
+    });
+
+    test('reads a point value and its dimensions', () {
+      final point = output.metricsNamed('checkout.total').first.point;
+
+      expect(point.value, 42.5);
+      expect(point.attributes['currency'], 'THB');
+    });
+
+    test('reads a histogram as count and sum rather than a point value', () {
+      final histogram = output.metricNamed('checkout.latency');
+
+      expect(histogram.kind, MetricKind.histogram);
+      expect(histogram.isMonotonic, isNull);
+      expect(histogram.point.count, 1);
+      expect(histogram.point.sum, 180.0);
+      expect(histogram.point.value, isNull);
+    });
+
+    test('exposes every export of a repeatedly collected metric', () {
+      // A metric reader re-exports each instrument per collection cycle, so how
+      // many copies arrive depends on how long the app ran.
+      expect(output.metricsNamed('checkout.total'), hasLength(2));
+      expect(output.metricNamed('checkout.total').point.value, 84.0);
+    });
+
+    test('refuses to pick one of several dimensions', () {
+      final byChannel = output.metricNamed('checkout.by_channel');
+
+      expect(byChannel.points, hasLength(2));
+      expect(() => byChannel.point, throwsStateError);
+    });
+
+    test('fails loudly on a metric that never arrived', () {
+      expect(() => output.metricNamed('nope'), throwsStateError);
+    });
+
+    test('exposes resource attributes on metrics', () {
+      expect(
+        output.metricNamed('cart.items').resource['session.id'],
+        '5f2b1c9a',
+      );
+    });
   });
 
   group('robustness', () {
@@ -136,6 +194,7 @@ void main() {
 
       expect(parsed.spans, isEmpty);
       expect(parsed.logs, isEmpty);
+      expect(parsed.metrics, isEmpty);
     });
 
     test('surfaces malformed lines instead of silently skipping them', () {
@@ -147,12 +206,24 @@ void main() {
       );
     });
 
-    test('ignores export requests carrying signals it does not parse yet', () {
-      // Metric parsing lands with the logs-and-metrics ticket.
-      final parsed = CollectorOutput.parse(['{"resourceMetrics":[]}']);
+    test('ignores export requests carrying signals it does not parse', () {
+      // Profiles are a real OTLP signal the Plugin never emits; an unrecognised
+      // request is not the harness's problem to report.
+      final parsed = CollectorOutput.parse(['{"resourceProfiles":[]}']);
 
       expect(parsed.spans, isEmpty);
       expect(parsed.logs, isEmpty);
+      expect(parsed.metrics, isEmpty);
+    });
+
+    test('reports an undecodable metric shape rather than guessing', () {
+      // An exponential histogram would otherwise silently arrive as a sum.
+      final parsed = CollectorOutput.parse([
+        '{"resourceMetrics":[{"scopeMetrics":[{"metrics":['
+            '{"name":"m","exponentialHistogram":{"dataPoints":[]}}]}]}]}',
+      ]);
+
+      expect(parsed.metricNamed('m').kind, MetricKind.unknown);
     });
   });
 }
