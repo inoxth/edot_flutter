@@ -22,6 +22,9 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
   private var spans: [String: Span] = [:]
   private let spansLock = NSLock()
 
+  /// Runs the blocking part of `flush` off the main thread.
+  private let flushQueue = DispatchQueue(label: "co.inoxth.edot.flush")
+
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: channelName,
@@ -185,16 +188,23 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       return
     }
 
-    // Traces and metrics only. The pinned OpenTelemetry Swift LoggerProviderSdk
-    // exposes no forceFlush and does not surface its processor, and the Agent
-    // builds that provider internally — so log records cannot be flushed here
-    // and still wait for their batch timer (ADR-0001). Dart documents this.
-    (OpenTelemetry.instance.tracerProvider as? TracerProviderSdk)?.forceFlush()
-    if let meterProvider = OpenTelemetry.instance.meterProvider as? StableMeterProviderSdk {
-      _ = meterProvider.forceFlush()
-    }
+    // forceFlush blocks its caller — BatchSpanProcessor waits on its operation
+    // queue, and the export writes to the Agent's on-disk buffer (ADR-0011). This
+    // handler runs on the main thread, so waiting here would stall the UI on a
+    // disk write. Dart awaits the reply either way.
+    flushQueue.async {
+      // Traces and metrics only. The pinned OpenTelemetry Swift LoggerProviderSdk
+      // exposes no forceFlush and does not surface its processor, and the Agent
+      // builds that provider internally — so log records cannot be flushed here
+      // and still wait for their batch timer (ADR-0001). Dart documents this.
+      (OpenTelemetry.instance.tracerProvider as? TracerProviderSdk)?.forceFlush()
+      if let meterProvider = OpenTelemetry.instance.meterProvider as? StableMeterProviderSdk {
+        _ = meterProvider.forceFlush()
+      }
 
-    result(nil)
+      // Flutter requires the reply on the main thread.
+      DispatchQueue.main.async { result(nil) }
+    }
   }
 
   private func log(_ message: String) {

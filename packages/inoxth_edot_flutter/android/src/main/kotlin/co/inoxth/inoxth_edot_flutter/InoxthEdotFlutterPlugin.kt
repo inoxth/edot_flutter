@@ -1,6 +1,8 @@
 package co.inoxth.inoxth_edot_flutter
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
 import co.elastic.otel.android.ElasticApmAgent
 import co.elastic.otel.android.connectivity.Authentication
 import co.elastic.otel.android.exporters.configuration.ExportProtocol
@@ -16,6 +18,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.sdk.resources.Resource
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /**
@@ -40,6 +43,10 @@ class InoxthEdotFlutterPlugin :
      * Agent's own instrumentation runs on others.
      */
     private val spans = ConcurrentHashMap<String, Span>()
+
+    /** Runs the blocking part of [flush] off the platform thread. */
+    private val flushExecutor = Executors.newSingleThreadExecutor()
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         application = flutterPluginBinding.applicationContext as? Application
@@ -206,16 +213,32 @@ class InoxthEdotFlutterPlugin :
             return
         }
 
-        // All three signals, unlike iOS where the pinned SDK cannot flush logs.
-        agent.flushSpans().join(FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        agent.flushMetrics().join(FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        agent.flushLogRecords().join(FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        result.success(null)
+        // Start all three before joining any. Each call returns its result code
+        // immediately, so the flushes overlap and the wait is bounded by the
+        // slowest rather than by their sum. All three signals, unlike iOS where
+        // the pinned Agent cannot flush logs.
+        val pending =
+            listOf(
+                agent.flushSpans(),
+                agent.flushMetrics(),
+                agent.flushLogRecords()
+            )
+
+        // join blocks, and this handler runs on the platform thread. Waiting here
+        // would freeze the UI for as long as the export takes — seconds, which is
+        // ANR territory. Dart awaits the reply either way, so moving the wait to a
+        // background thread costs the caller nothing.
+        flushExecutor.execute {
+            pending.forEach { it.join(FLUSH_TIMEOUT_SECONDS, TimeUnit.SECONDS) }
+            // Flutter requires the reply on the platform thread.
+            mainHandler.post { result.success(null) }
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
         spans.clear()
+        flushExecutor.shutdown()
         agent?.close()
         agent = null
         application = null

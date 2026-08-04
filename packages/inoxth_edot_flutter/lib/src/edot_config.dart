@@ -88,7 +88,7 @@ class EdotConfig {
   /// Environment identifier, such as `prod` or `staging`.
   final String deploymentEnvironment;
 
-  /// OTLP endpoint of the collector or APM Server.
+  /// OTLP URL telemetry is exported to. Its host becomes [collectorHost].
   final String serverUrl;
 
   final EdotAuth auth;
@@ -187,25 +187,31 @@ class EdotConfig {
 /// Deliberately a function in `src/` rather than a method on [EdotConfig]: the
 /// channel encoding is an internal contract with the two native implementations,
 /// not something consumers should call or depend on.
-Map<String, Object?> encodeConfig(EdotConfig config) => <String, Object?>{
-  'serviceName': config.serviceName,
-  'serviceVersion': config.serviceVersion,
-  'deploymentEnvironment': config.deploymentEnvironment,
-  'serverUrl': config.serverUrl,
-  'collectorHost': config.collectorHost,
-  'exportProtocol': config.exportProtocol.name,
-  'sessionSamplingRate': config.sessionSamplingRate,
-  'debug': config.debug,
-  'disableAgent': config.disableAgent,
-  'apiKey': switch (config.auth) {
-    EdotApiKeyAuth(:final key) => key,
-    _ => null,
-  },
-  'secretToken': switch (config.auth) {
-    EdotSecretTokenAuth(:final token) => token,
-    _ => null,
-  },
-  'android': <String, Object?>{
-    'diskBufferingEnabled': config.android.diskBufferingEnabled,
-  },
-};
+/// [EdotConfig.collectorHost] is deliberately absent: the exclusion it exists
+/// for (ADR-0006) is applied by the Dart-side network instrumentation, so it
+/// never needs to cross to native.
+Map<String, Object?> encodeConfig(EdotConfig config) {
+  // One switch rather than one per wire field, so the sealed type is matched
+  // exhaustively in a single place.
+  final (apiKey, secretToken) = switch (config.auth) {
+    EdotApiKeyAuth(:final key) => (key, null),
+    EdotSecretTokenAuth(:final token) => (null, token),
+    EdotNoAuth() => (null, null),
+  };
+
+  return <String, Object?>{
+    'serviceName': config.serviceName,
+    'serviceVersion': config.serviceVersion,
+    'deploymentEnvironment': config.deploymentEnvironment,
+    'serverUrl': config.serverUrl,
+    'exportProtocol': config.exportProtocol.name,
+    'sessionSamplingRate': config.sessionSamplingRate,
+    'debug': config.debug,
+    'disableAgent': config.disableAgent,
+    'apiKey': apiKey,
+    'secretToken': secretToken,
+    'android': <String, Object?>{
+      'diskBufferingEnabled': config.android.diskBufferingEnabled,
+    },
+  };
+}
