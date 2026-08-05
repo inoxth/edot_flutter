@@ -6,9 +6,9 @@ app does.
 
 | | Minimum |
 |---|---|
-| **iOS** | **15.6** — Swift Package Manager required, **no CocoaPods support** |
+| **iOS** | **15.6** - Swift Package Manager required, **no CocoaPods support** |
 | **Android** | **API 24**, compileSdk 36 |
-| **Flutter** | **3.44** — SPM is default-on from this version |
+| **Flutter** | **3.44** - SPM is default-on from this version |
 
 These floors are not incidental. The Agents are pinned to the newest releases that meet them
 (`apm-agent-ios` 1.2.1, `co.elastic.otel.android:agent-sdk` 1.1.0), because `apm-agent-ios`
@@ -26,7 +26,7 @@ Six things surprise people, and all six are deliberate. The full list is in
    existing crash reporter. See [Crash reporting](#crash-reporting).
 2. **Dart errors are not crashes.** They are non-fatal log records and never affect crash-free
    rate, on either platform.
-3. **On Android, nothing is exported for the first ~3 seconds after `Edot.start`** — and
+3. **On Android, nothing is exported for the first ~3 seconds after `Edot.start`** - and
    `flush()` reports success anyway. Do not build a "start, report, exit" flow.
 4. **`Edot.currentSessionId()` is always empty on Android.** Its Agent exposes no accessor.
 5. **`sessionSamplingRate` is unreliable on iOS.** Use `disableAgent` to switch telemetry off.
@@ -43,13 +43,13 @@ Six things surprise people, and all six are deliberate. The full list is in
 ```yaml
 dependencies:
   inoxth_edot_flutter: ^0.1.0
-  # Only if you use Dio — it ships separately, see below
+  # Only if you use Dio - it ships separately, see below
   inoxth_edot_flutter_dio: ^0.1.0
 ```
 
 ### 2. Start the Agent
 
-Early in `main`, before the first frame if you can — telemetry produced before this is held and
+Early in `main`, before the first frame if you can - telemetry produced before this is held and
 replayed, but the sooner it starts the less there is to hold.
 
 ```dart
@@ -85,8 +85,8 @@ MaterialApp(
 That produces a **Screen Span** per transition, ending when the destination's first frame
 renders, and sets the **Active View** so every later signal carries the screen it came from.
 
-**Switching screens without pushing a route** — a bottom navigation bar, tabs, an `IndexedStack`
-— cannot be observed by a `NavigatorObserver`. Tell the Plugin yourself:
+**Switching screens without pushing a route** - a bottom navigation bar, tabs, an `IndexedStack`
+- cannot be observed by a `NavigatorObserver`. Tell the Plugin yourself:
 
 ```dart
 onTabSelected: (index) {
@@ -117,7 +117,7 @@ await Edot.start(EdotConfig(/* ... */, traceAllHttpTraffic: true));
 (c) covers requests you did not write, which is usually the point. Combining it with (a) or (b)
 is safe: a request is traced once, never twice.
 
-Requests to your collector's own host are **never** traced, at any path or port — otherwise
+Requests to your collector's own host are **never** traced, at any path or port - otherwise
 exporting telemetry would generate telemetry.
 
 ### 5. Errors are already captured
@@ -179,11 +179,11 @@ final current = Edot.trackingConsent;
 
 Three things to know:
 
-- **The default is `granted`** — not because that is what your regulator wants. Pass `pending`
+- **The default is `granted`** - not because that is what your regulator wants. Pass `pending`
   if you must not emit before asking.
 - **Refused telemetry is discarded, not held.** Granting later does not release what the app
   produced while consent was withheld. Withdrawing cannot retract what has already been
-  exported — that has left the device.
+  exported - that has left the device.
 - **The gate covers what the Plugin emits, not what the Agent collects by itself.** On iOS,
   crash reports, lifecycle events and system metrics are produced natively and never pass
   through it. An app that must emit *nothing* before consent is resolved should use
@@ -209,7 +209,7 @@ await Edot.tracer.runWithParent(span, () async {
 // A structured event that is not an operation.
 Edot.log(EdotSeverity.warn, 'cart abandoned', attributes: {'cart.items': 3});
 
-// A metric. Attributes are String-valued only — a hard limit of the pinned
+// A metric. Attributes are String-valued only - a hard limit of the pinned
 // iOS Agent's legacy meter, not a simplification.
 Edot.recordMetric('checkout.completed', 1, attributes: {'tier': 'gold'});
 ```
@@ -232,7 +232,7 @@ GoRouter(
 
 Screen names are derived from the route, and the derivation collapses identifiers so
 `/orders/9f8e7d6c` and `/orders/12345` do not become thousands of distinct screens. When the
-derived name is not what you want — GoRouter's paths often are not — supply your own:
+derived name is not what you want - GoRouter's paths often are not - supply your own:
 
 ```dart
 EdotNavigatorObserver(
@@ -244,7 +244,7 @@ EdotNavigatorObserver(
 ```
 
 Return `null` or a blank string to fall back to the derived name. If the extractor throws, the
-Plugin logs it and uses the derived name — navigation is never broken by telemetry.
+Plugin logs it and uses the derived name - navigation is never broken by telemetry.
 
 ---
 
@@ -257,10 +257,10 @@ Every item here is a recorded consequence of a decision, not an oversight.
 The pinned Agents predate these APIs, and raising the pins would raise the platform floors.
 
 - **No user identity, no global attributes, no attribute redaction.** `apm-agent-ios` 1.2.1 has
-  no span-attribute interceptor. Android's Agent *does* — it is forgone anyway, so the two
+  no span-attribute interceptor. Android's Agent *does* - it is forgone anyway, so the two
   platforms emit the same shape.
 - **No central configuration / OpAMP.**
-- **No Session control** — you cannot start, stop or rename a Session.
+- **No Session control** - you cannot start, stop or rename a Session.
 - **`Edot.currentSessionId()` returns an empty string on Android.** Its Agent exposes
   `SessionManager` only as internal, explicitly-unstable API. A support screen must handle an
   empty answer rather than displaying it.
@@ -276,20 +276,20 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   its exporters until its own latches open and reports success while telemetry is still queued.
   An app that starts, emits and is killed inside that window loses it. No configuration
   shortens the wait.
-- **`flush()` covers traces only on iOS** — not log records, not metrics. Metrics leave on the
+- **`flush()` covers traces only on iOS** - not log records, not metrics. Metrics leave on the
   Agent's own 60-second timer.
 - **Buffered telemetry is delivered at least once.** After an outage the same span can arrive
   twice, because the buffer re-sends any batch it could not confirm. Count distinct span ids,
   not spans.
 - **Telemetry buffered offline expires after 18 hours.**
 - **On Android, telemetry held before `start` is dated when it was replayed**, not when it
-  happened — the Agent re-derives every timestamp at export from its own clock. Durations are
+  happened - the Agent re-derives every timestamp at export from its own clock. Durations are
   unaffected. iOS keeps the original time.
 
 ### Crash reporting
 
 - **Unavailable on Android.** Its Agent installs whatever instrumentation is on the classpath
-  with no filter and no runtime switch, so the only control is which artefacts ship — and this
+  with no filter and no runtime switch, so the only control is which artefacts ship - and this
   plugin deliberately does not ship the crash one.
 - **On by default on iOS, and it will fight your incumbent.** Crash capture installs
   process-wide signal and Mach exception handlers; Crashlytics and Sentry install their own, and
@@ -302,7 +302,7 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
 
   It is on by default because that is the Agent's own default.
 - **Dart errors are not crashes.** They are non-fatal log records, so crash-free rate reflects
-  native crashes only — which on Android means it reflects nothing this plugin sends.
+  native crashes only - which on Android means it reflects nothing this plugin sends.
 - **Dart stack traces are not symbolicated.** An obfuscated release build produces unreadable
   frames. Keep your symbol files and deobfuscate offline.
 
@@ -312,8 +312,8 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   carrying `http.url` as an HTTP span and manufactures a synthetic parent for it when it has
   none, because Elastic's data model requires a span to belong to a transaction. Span counts are
   not comparable across platforms. Giving the request a parent of your own avoids it.
-- **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself —
-  lifecycle events, its own network instrumentation on iOS — starts its own trace. Correlate
+- **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself -
+  lifecycle events, its own network instrumentation on iOS - starts its own trace. Correlate
   through `session.id` and the Active View attributes, not through trace structure.
 - **No request to the collector's host is traced, at any path or port.** The exclusion is host
   equality, so a collector on `example.com` also excludes your API on `example.com`. Put them on
@@ -321,7 +321,7 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
 
 ### The attribute set
 
-Emitted names follow the **Elastic Mobile Attribute Set** — the vocabulary the native EDOT
+Emitted names follow the **Elastic Mobile Attribute Set** - the vocabulary the native EDOT
 Agents themselves emit, which predates the stable OpenTelemetry HTTP conventions.
 
 | Emitted | Stable OpenTelemetry equivalent |
@@ -347,7 +347,7 @@ Two details that matter when you write queries:
   its own per-visit identifier for the attribute. Group or filter on it as an attribute; do not
   expect it to join against a span's `span_id` field, because it is not one.
 - **`http.url` is stripped before you see it.** Before any sanitizer of yours runs, this plugin
-  removes the query string, the fragment and any credentials in the authority — all three
+  removes the query string, the fragment and any credentials in the authority - all three
   routinely carry tokens or PII, and none of them names the resource requested. A dashboard
   grouping by `http.url` is unaffected; anything relying on a query parameter being present in it
   will not find one. Use `urlSanitizer` if you need to reshape what remains.
@@ -372,5 +372,5 @@ metrics, and the Session identifier.
 ## Design decisions
 
 `docs/adr/` in the repository records every decision this implementation is bound by, including
-all the trade-offs behind the limitations above. `CONTEXT.md` is the domain glossary — the terms
+all the trade-offs behind the limitations above. `CONTEXT.md` is the domain glossary - the terms
 used in this document have precise meanings there.

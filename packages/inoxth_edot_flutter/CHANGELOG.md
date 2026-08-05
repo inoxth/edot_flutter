@@ -22,13 +22,13 @@ telemetry pipeline and every integration in place.
   parent context so a span created in synchronous code still nests correctly.
 * Log records and metrics are emitted through the Agent; metric attributes are
   String-only, a consequence of the pinned iOS Agent's legacy meter (ADR-0012).
-* `Edot.flush()` drains in-memory buffers but does not promise delivery — a property of
+* `Edot.flush()` drains in-memory buffers but does not promise delivery - a property of
   the pinned Agents, not a choice (ADR-0011).
 
 **Instrumentation**
 
 * Network tracing for `package:http` (`EdotHttpClient`) and, in the separate
-  `inoxth_edot_flutter_dio` package, for Dio — both driving one shared request trace so
+  `inoxth_edot_flutter_dio` package, for Dio - both driving one shared request trace so
   they cannot drift (ADR-0013).
 * App-wide `dart:io` tracing (`traceAllHttpTraffic`), de-duplicated against the wrapped
   transports by the Traced Marker (ADR-0014).

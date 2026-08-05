@@ -47,7 +47,7 @@ recorded as it was *before* the rewrite.
 ## What you get
 
 Everything the plugin's network tracing gives you, because both integrations drive the same
-`EdotRequestTrace` — the URL sanitizer, both exclusion rules and the trace-propagation decision
+`EdotRequestTrace` - the URL sanitizer, both exclusion rules and the trace-propagation decision
 are applied in one place for both, so the two cannot drift apart:
 
 - One client span per request, named `<METHOD>`, with the Elastic Mobile Attribute Set.
@@ -55,7 +55,7 @@ are applied in one place for both, so the two cannot drift apart:
 - `traceparent` on requests to hosts you propagate to, joining the server's spans to this one.
 - Request and response sizes where they can be known before the wire.
 
-Configuration lives entirely on `EdotConfig` — `excludedUrls`, `urlSanitizer`,
+Configuration lives entirely on `EdotConfig` - `excludedUrls`, `urlSanitizer`,
 `tracePropagationTargets`. There is nothing to configure here.
 
 ## Dio-specific behaviour
@@ -69,10 +69,10 @@ Configuration lives entirely on `EdotConfig` — `excludedUrls`, `urlSanitizer`,
   most of what the attribute is read for.
 - **A `Map` request body reports no size.** Dio's transformers encode it to JSON *after* this
   interceptor runs, so the encoded size does not exist yet. Strings, byte lists and `FormData`
-  do report one. Absent rather than guessed — a wrong body size is worse than none.
+  do report one. Absent rather than guessed - a wrong body size is worse than none.
 - **`traceparent` you set yourself is overwritten.** The header names the immediate parent of
   the request, and once traced that is this span.
-- **A request the plugin excludes is not traced at all** — the Collector Host, anything matching
+- **A request the plugin excludes is not traced at all** - the Collector Host, anything matching
   `excludedUrls`, and anything issued before `Edot.start`. The request itself proceeds untouched.
 
 ## Using it alongside the other transports
@@ -84,7 +84,7 @@ request is never traced twice: the transport that traced it marks it, and
 ## Limitations
 
 Every limitation in the [plugin's README](../inoxth_edot_flutter/README.md#limitations)
-applies here — `flush()` not promising delivery, the attribute set not being stable semconv,
+applies here - `flush()` not promising delivery, the attribute set not being stable semconv,
 the crash-reporting asymmetry. This package adds no telemetry pipeline of its own; it only adds
 a source.
 

@@ -47,10 +47,10 @@ Two installable packages; each has its own README.
 
 | Package | Description |
 |---|---|
-| [`inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | Core — config, both native implementations, navigation, errors, `package:http` tracing, logs, metrics, consent |
+| [`inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | Core - config, both native implementations, navigation, errors, `package:http` tracing, logs, metrics, consent |
 | [`inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor. Separate because Dart has no optional dependencies |
 
-The repository also holds test infrastructure (`edot_collector_harness`) and the example app —
+The repository also holds test infrastructure (`edot_collector_harness`) and the example app -
 [`CONTRIBUTING.md`](CONTRIBUTING.md) maps the full layout.
 
 ## Compatibility
@@ -67,7 +67,7 @@ Android `compileSdk` 36. The Agent versions are pinned; raising them raises the 
 **Auto** features need no per-request or per-screen code once the relevant integration is
 enabled; **Manual** features are called explicitly. Grouped by the package that provides them.
 
-### Core — [`inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md)
+### Core - [`inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md)
 
 | Feature | Mode |
 |---|---|
@@ -87,7 +87,7 @@ enabled; **Manual** features are called explicitly. Grouped by the package that 
 
 ¹ once the observer is registered on your `MaterialApp` or router.
 
-### Dio — [`inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md)
+### Dio - [`inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md)
 
 | Feature | Mode |
 |---|---|
@@ -107,7 +107,7 @@ Attribute value types accepted by each API.
 
 A working example app lives in
 [`packages/inoxth_edot_flutter/example`](packages/inoxth_edot_flutter/example). It exercises
-every feature across four tabs — Telemetry, Network, Errors and Consent — covering manual spans,
+every feature across four tabs - Telemetry, Network, Errors and Consent - covering manual spans,
 logs and metrics, all three network paths, error capture and the boundary, navigation and tab
 tracking, the consent states, and the Session identifier.
 
@@ -118,4 +118,4 @@ workflow.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
