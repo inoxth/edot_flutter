@@ -15,6 +15,7 @@ melos is a workspace dev-dependency and is **not on PATH** - invoke it as `dart 
 - `dart run melos run format-check` - `dart format --set-exit-if-changed`.
 - `dart run melos run test --no-select` - Seam 1 (hermetic) tests. **The `--no-select` flag is required**, or melos prompts for a package and fails on a non-interactive shell.
 - Single test file: from a package directory, `flutter test test/<name>_test.dart`.
+- Run/build on a device: from `packages/inoxth_edot_flutter/example`, `flutter run -d <device>`, or `flutter build apk` / `flutter build ios`. The plugin has no runnable target of its own.
 - Seam 2 (real collector; needs Docker + a device/emulator): from `packages/inoxth_edot_flutter/example`, `dart run tool/verify_<name>.dart -d <device>`. See `CONTRIBUTING.md` for the full list and per-platform notes.
 
 Analysis is strict on purpose: `strict-casts`/`strict-inference`/`strict-raw-types` and `public_member_api_docs` are on, so an **undocumented public member fails `verify`**. Only the example app and the test harness opt out of the docs lint (they are not published libraries).
@@ -22,6 +23,8 @@ Analysis is strict on purpose: `strict-casts`/`strict-inference`/`strict-raw-typ
 ## Architecture
 
 The pipeline is **native-authoritative** (ADR-0002): the Agent owns real spans, sessions, buffering and export. Dart never sees a real span id - it mints a **Shadow Span** identifier and the Agent maps it to the real span. Everything crosses one method channel (`edotChannelName`).
+
+The native side has two implementations that must stay in lockstep: `InoxthEdotFlutterPlugin.kt` (Android, Kotlin) and `InoxthEdotFlutterPlugin.swift` (iOS, Swift), each under `packages/inoxth_edot_flutter/{android,ios}/`. A change to the channel protocol - a new method or argument - is a three-place edit: the Dart sender plus both handlers. **Seam 1 mocks the channel, so it stays green even if a native handler is missing; only Seam 2 catches that.**
 
 Consequences that shape most of the code:
 
