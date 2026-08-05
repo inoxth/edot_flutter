@@ -75,6 +75,16 @@ Never hardcode the URL or credential. Read them from `--dart-define` or your own
 
 ### 3. Trace navigation
 
+Navigation tracing produces a **Screen Span** per transition - ending when the destination's
+first frame renders - and sets the **Active View**, so every later signal carries the screen it
+came from. Screen names are derived from the route, with variable segments collapsed so
+`/orders/9f8e7d6c` and `/orders/12345` do not become thousands of distinct screens.
+
+#### Flutter's Navigator (the default)
+
+Add the observer to your app's `navigatorObservers`. It works with named routes and imperative
+`Navigator.push` / `pushNamed` alike:
+
 ```dart
 MaterialApp(
   navigatorObservers: [EdotNavigatorObserver()],
@@ -82,11 +92,48 @@ MaterialApp(
 )
 ```
 
-That produces a **Screen Span** per transition, ending when the destination's first frame
-renders, and sets the **Active View** so every later signal carries the screen it came from.
+#### GoRouter
 
-**Switching screens without pushing a route** - a bottom navigation bar, tabs, an `IndexedStack`
-- cannot be observed by a `NavigatorObserver`. Tell the Plugin yourself:
+GoRouter reports through `NavigatorObserver`, so the same observer attaches via its `observers`
+list:
+
+```dart
+GoRouter(
+  observers: [EdotNavigatorObserver()],
+  routes: [...],
+)
+```
+
+GoRouter's own route names are usually paths such as `/orders/:id`, which do not read well on a
+dashboard. Supply a `screenNameExtractor` to name them yourself:
+
+```dart
+EdotNavigatorObserver(
+  screenNameExtractor: (route) => switch (route.settings.name) {
+    '/orders/:id' => 'Order detail',
+    final other => other,
+  },
+)
+```
+
+Return `null` or a blank string to fall back to the derived name. If the extractor throws, the
+Plugin logs it and uses the derived name - navigation is never broken by telemetry.
+
+A `ShellRoute` or `StatefulShellRoute` runs its own nested `Navigator`. Add an
+`EdotNavigatorObserver` to that route's `observers` too, or the transitions inside the shell go
+unobserved.
+
+#### Other routers
+
+Any router that drives a `NavigatorObserver` - auto_route, Beamer, and the rest - works the same
+way. The `screenNameExtractor` hook shown above is the general escape hatch: it hands you the
+`Route` and takes whatever name you return, so you can map any router's own route identifiers to
+the screen names you want. It is the integration point, rather than a per-router adapter.
+
+#### Tabs and other non-route switches
+
+A bottom navigation bar, tabs, or an `IndexedStack` change what is on screen without pushing a
+route, so a `NavigatorObserver` never sees them. Tell the Plugin yourself:
 
 ```dart
 onTabSelected: (index) {
@@ -95,30 +142,59 @@ onTabSelected: (index) {
 }
 ```
 
-Those switches get no Screen Span, only a new Active View. A Screen Span measures a
-transition the framework reported; a tab switch is not one.
+These get no Screen Span - there is no transition to measure - only a new Active View.
 
 ### 4. Trace network requests
 
-Three options, in increasing order of reach:
+Three options, in increasing order of reach. They can be combined - see [below](#combining-them-and-the-collector).
+
+#### A single client - `EdotHttpClient`
+
+Wrap the `http.Client` you already use. Only requests made through this client are traced;
+nothing else is touched. It is the smallest blast radius, and the right choice when your app
+funnels requests through a networking layer you control.
 
 ```dart
-// a. One client, explicitly. Nothing else is traced.
 final client = EdotHttpClient(http.Client());
+final response = await client.get(Uri.parse('https://api.example.com/orders'));
+```
 
-// b. Dio, via the interceptor from the companion package.
+#### Dio - `EdotDioInterceptor`
+
+Add the interceptor from the companion `inoxth_edot_flutter_dio` package to the `Dio` instance
+your app already uses:
+
+```dart
 dio.interceptors.add(EdotDioInterceptor());
+```
 
-// c. Everything the app sends over dart:io, including package:http and
-//    anything a dependency uses.
+It ships separately because Dart has no optional dependencies. Its Dio-specific behaviour - how a
+4xx is recorded, what `exception.type` carries, why a `Map` body reports no size - is documented
+in the [Dio package README](../inoxth_edot_flutter_dio/README.md).
+
+#### Everything over `dart:io` - `traceAllHttpTraffic`
+
+A single config flag traces every request `dart:io` makes - `package:http`, and anything a
+dependency sends through its own `HttpClient`:
+
+```dart
 await Edot.start(EdotConfig(/* ... */, traceAllHttpTraffic: true));
 ```
 
-(c) covers requests you did not write, which is usually the point. Combining it with (a) or (b)
-is safe: a request is traced once, never twice.
+This reaches requests you did not write, which is usually the point. It is off by default because
+it installs a process-wide `HttpOverrides`. Two things differ on this path only: the span begins
+when the request is dispatched rather than when the connection opens, and it carries no Trace
+Context - so a request traced this way does not join the server's spans downstream.
 
-Requests to your collector's own host are **never** traced, at any path or port - otherwise
-exporting telemetry would generate telemetry.
+#### Combining them, and the collector
+
+**Combining is safe.** A request is traced once, never twice: whichever layer traces it marks it,
+and the others leave a marked request alone. So `traceAllHttpTraffic` alongside `EdotHttpClient`
+or the Dio interceptor does not double-count.
+
+**Your collector's own host is never traced**, at any path or port - otherwise exporting
+telemetry would itself generate telemetry. The exclusion is host equality; see
+[Traces](#traces) under Limitations.
 
 ### 5. Errors are already captured
 
@@ -217,34 +293,6 @@ Edot.recordMetric('checkout.completed', 1, attributes: {'tier': 'gold'});
 Being the most recently started span does **not** make a span a parent. That rule produces
 plausible-looking, wrong trace trees the moment two async flows overlap, so use
 `runWithParent` to say what nests under what.
-
-### GoRouter, and other routers
-
-`EdotNavigatorObserver` works with any router that reports through `NavigatorObserver`,
-GoRouter included:
-
-```dart
-GoRouter(
-  observers: [EdotNavigatorObserver()],
-  routes: [...],
-)
-```
-
-Screen names are derived from the route, and the derivation collapses identifiers so
-`/orders/9f8e7d6c` and `/orders/12345` do not become thousands of distinct screens. When the
-derived name is not what you want - GoRouter's paths often are not - supply your own:
-
-```dart
-EdotNavigatorObserver(
-  screenNameExtractor: (route) => switch (route.settings.name) {
-    '/orders/:id' => 'Order detail',
-    final other => other,
-  },
-)
-```
-
-Return `null` or a blank string to fall back to the derived name. If the extractor throws, the
-Plugin logs it and uses the derived name - navigation is never broken by telemetry.
 
 ---
 
