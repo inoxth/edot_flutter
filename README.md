@@ -10,8 +10,10 @@ app does.
 
 **Using the plugin in an app?** Read
 [`packages/inoxth_edot_flutter/README.md`](packages/inoxth_edot_flutter/README.md) — the setup
-guide, the recipes and the complete list of deliberate limitations live there. This file covers
-working *on* the repo.
+guide, the recipes and the complete list of deliberate limitations live there.
+
+**Working *on* the plugin?** [`CONTRIBUTING.md`](CONTRIBUTING.md) covers the toolchain, the two
+test seams and the change workflow.
 
 ## Requirements
 
@@ -37,53 +39,16 @@ Each package has its own README with the detail; this table is the map.
 | `inoxth_edot_flutter_dio` | [README](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor. Separate because Dart has no optional dependencies |
 | `edot_collector_harness` | [README](packages/edot_collector_harness/README.md) | Seam 2 test harness. Never published |
 
-## Working in this repo
+## Contributing
+
+Toolchain, the two test seams and the change workflow are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). In short:
 
 ```bash
-dart pub global activate melos          # once
-flutter pub get                         # resolves the pub workspace
-melos run verify                        # format, analyse, Dart test tier
+dart pub global activate melos   # once
+flutter pub get
+melos run verify                 # format-check, analyze, Seam 1 test tier
 ```
-
-### Tests
-
-Two seams, by design — see `docs/adr/`.
-
-- **Seam 1, the platform channel.** Fast and hermetic, no native code.
-  `melos run test --no-select` — the flag is required because the script is
-  package-filtered, so without it melos prompts for a package and fails outright
-  on a non-interactive shell.
-- **Seam 2, exported telemetry at a real collector.** Needs Docker and a device or
-  emulator.
-
-Each Seam 2 contract is two halves: a device half that emits, and a host half that
-starts the collector, drives the device half and owns the assertions. They are split
-because `integration_test` code runs on the device, where the collector's output file
-does not exist. Run the host half — it starts and stops the collector itself.
-
-```bash
-cd packages/inoxth_edot_flutter/example
-dart run tool/verify_tracer_bullet.dart -d <device>
-dart run tool/verify_span_enrichment.dart -d <device>
-dart run tool/verify_span_parenting.dart -d <device>
-dart run tool/verify_screen_attribution.dart -d <device>
-dart run tool/verify_navigation.dart -d <device>
-dart run tool/verify_network.dart -d <device>
-dart run tool/verify_trace_context.dart -d <device>
-dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only
-dart run tool/verify_platform_config.dart -d <device>               # runs the device half 4x
-dart run tool/verify_signals.dart -d <android-device>               # Android only
-dart run tool/verify_error.dart -d <android-device>                 # Android only
-dart run tool/verify_disk_buffering.dart -d <android-device>        # Android only
-dart run tool/verify_consent.dart -d <android-device>               # Android only
-```
-
-`verify_disk_buffering.dart` is the one suite that stops the collector mid-run — it is the only way to
-create the offline period disk buffering exists for. Expect it to take a few minutes: the outage has to
-outlast the exporter's in-memory retry to prove anything.
-
-Each host half exits 2 with an explanation when Docker is absent, rather than
-passing. A silently skipped Seam 2 tier reads as coverage it does not have.
 
 ## Status
 
