@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'exclusion_contract.dart';
 
 /// Seam 2, device half — exercises the Collector Host exclusion (ADR-0006).
@@ -17,8 +18,6 @@ import 'exclusion_contract.dart';
 const _probeChannel = MethodChannel(
   'inoxth_edot_flutter_example/native_request',
 );
-
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -53,11 +52,6 @@ void main() {
       });
     }
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
   });
 }

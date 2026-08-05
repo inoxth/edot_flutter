@@ -6,17 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'trace_context_contract.dart';
-
-/// Seam 2, device half — makes real requests and records what reached the service.
-///
-/// The loopback server stands in for the service the request was made to: it starts a
-/// span of its own for every request it answers, carrying the headers it saw. Those
-/// spans are the only way the exported telemetry can say anything about what left the
-/// device.
-///
-/// Assertions live in the host half: `tool/verify_trace_context.dart`.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -81,12 +72,7 @@ void main() {
       // Whether the collector answers a GET is beside the point; the absent span is.
     }
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
 
     client.close();
     await server.close(force: true);

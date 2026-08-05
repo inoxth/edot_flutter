@@ -5,14 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'platform_config_contract.dart';
-
-/// Seam 2, device half — starts the Agent under one configuration and probes it.
-///
-/// Which configuration comes from `--dart-define=EDOT_CASE=...`, because `Edot.start` may be
-/// called only once per process. The host half runs this once per case:
-/// `tool/verify_platform_config.dart`, where the assertions live.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 const _case = String.fromEnvironment(caseVariable);
 
@@ -50,12 +44,7 @@ void main() {
     // `not_initialized` error when no Agent is running, which Dart raises. There is nothing
     // buffered to drain there anyway, which is the whole point of that case.
     if (configCase != ConfigCase.disabled) {
-      await Edot.flush();
-
-      if (Platform.isIOS) {
-        // ADR-0011: flush cannot force the iOS persistence worker to upload.
-        await Future<void>.delayed(_iosPersistenceUploadWindow);
-      }
+      await flushUntilAssertable();
     }
   });
 }

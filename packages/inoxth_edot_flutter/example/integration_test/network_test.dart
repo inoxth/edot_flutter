@@ -6,18 +6,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
+
+import 'agent_export.dart';
 import 'package:inoxth_edot_flutter_dio/inoxth_edot_flutter_dio.dart';
 
 import 'network_contract.dart';
-
-/// Seam 2, device half — makes real requests through both traced integrations.
-///
-/// A server on the device's own loopback rather than a public host: it makes the
-/// status codes and body sizes deterministic, and it keeps the suite runnable with
-/// no network beyond the collector.
-///
-/// Assertions live in the host half: `tool/verify_network.dart`.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -111,12 +104,7 @@ void main() {
       // point of the assertion in the host half.
     }
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
 
     client.close();
     await server.close(force: true);

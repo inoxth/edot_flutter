@@ -65,6 +65,20 @@ Agent's, which would duplicate every span.
   addition for a test-speed problem that is not yet a real cost.
 - Anyone bumping the iOS Agent pin should re-check whether `BatchWorker` has learned to call
   `spanExporter.flush()`. If it has, the iOS wait can be deleted and this ADR superseded.
+- **On Android, nothing can leave for the first ~3 seconds after start, and `flush()` reports
+  success anyway.** `agent-sdk` 1.1.0 wraps every exporter in a gate
+  (`GateSpanExporter` and its log and metric equivalents) that *enqueues instead of exporting*
+  until its latches open, returning a successful result code while it does. `ExporterGateManager`
+  opens the gate when every latch is released or after its timeout, which defaults to
+  **3 seconds** from initialisation. So a flush inside that window drains the Plugin's buffers
+  into the gate's queue and completes successfully with the telemetry still on the device.
+  **An app that starts the Agent, emits, and is killed within that window loses the
+  telemetry** — this is not only a test-harness concern. Confirmed from the Agent's own logs:
+  a device half that ended ~500ms after start logged the clock latch clearing but never logged
+  `Gate ... opened`, and nothing arrived. Every Android Seam 2 device half therefore waits the
+  gate out *before* flushing, so the flush goes to the network rather than into the queue; the
+  wait is `androidExportGateWindow` and it is justified against the Agent's own default rather
+  than chosen by trial. Anyone bumping the Android pin should re-check that default.
 - **The buffer does deliver after an outage, and delivery is at-least-once.** Verified at Seam 2 on
   Android: a span produced while the collector was unreachable arrives once it is reachable again, and
   the same span id was seen arriving twice. `FromDiskExporterImpl` returns `TRY_LATER` for a failed

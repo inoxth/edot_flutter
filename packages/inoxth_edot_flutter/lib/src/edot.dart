@@ -250,7 +250,12 @@ abstract final class Edot {
   /// Agent can be made to promise more:
   ///
   /// - **Android, [EdotAndroidConfig.diskBufferingEnabled] false** — the spans
-  ///   are on the wire before this future completes.
+  ///   are on the wire before this future completes, *once the Agent's exporter gate
+  ///   has opened*. For roughly the first **3 seconds** after [start] that gate
+  ///   enqueues telemetry instead of exporting it and reports success regardless, so a
+  ///   flush in that window completes with the telemetry still on the device. An app
+  ///   that starts the Agent, emits and is killed inside that window loses it, and
+  ///   there is no configuration or API that shortens the wait (ADR-0011).
   /// - **Android, disk buffering enabled (the default)** — the spans reach the
   ///   disk buffer, and a periodic job uploads them afterwards.
   /// - **iOS** — the spans reach the Agent's on-disk buffer, which cannot be

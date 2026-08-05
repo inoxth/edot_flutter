@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'signals_contract.dart';
 
 /// Seam 2, device half — emits the log record and metrics the host half checks.
@@ -57,6 +58,6 @@ void main() {
       attributes: dimensions,
     );
 
-    await Edot.flush();
+    await flushUntilAssertable();
   });
 }

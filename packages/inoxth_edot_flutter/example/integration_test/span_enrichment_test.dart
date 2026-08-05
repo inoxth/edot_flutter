@@ -5,13 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'enrichment_contract.dart';
-
-/// Seam 2, device half — sets typed attributes, records an exception and fails a
-/// span, so the host half can check what survived native decoding and export.
-///
-/// Assertions live in the host half: `tool/verify_span_enrichment.dart`.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -55,11 +50,6 @@ void main() {
       ..markFailed(failureDescription)
       ..end();
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
   });
 }

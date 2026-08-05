@@ -39,6 +39,11 @@ can paper over. Each is recorded in an ADR.
   signal-based crashes whichever installed last tends to win, so leaving both on can
   silently stop your existing reporter — which nobody notices until an incident. It is
   on by default only to match the React Native SDK (ADR-0009).
+- **On Android, nothing is exported for the first ~3 seconds after `Edot.start`.** The Agent
+  gates its exporters until its own latches open, and `flush()` reports success while the
+  telemetry is still queued behind that gate. An app that starts the Agent, emits, and is killed
+  inside that window loses the telemetry, and no configuration shortens the wait — so do not
+  build a "start, report, exit" flow on Android (ADR-0011).
 - **Telemetry buffered through an outage arrives more than once.** The buffer retries any batch it
   could not confirm, so after an outage the same span can reach your collector twice — verified on
   Android. Count distinct span ids, not spans. Buffered telemetry also expires after 18 hours offline,

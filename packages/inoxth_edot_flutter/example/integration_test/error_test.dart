@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'error_contract.dart';
 
 /// Seam 2, device half — captures one Dart Error from each source.
@@ -49,7 +50,7 @@ void main() {
     _captureReported();
     _captureInsideAnOperation();
 
-    await Edot.flush();
+    await flushUntilAssertable();
   });
 }
 

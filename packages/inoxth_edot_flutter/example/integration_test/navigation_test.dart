@@ -6,12 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'navigation_contract.dart';
-
-/// Seam 2, device half — navigates a real app and lets the observer do the rest.
-///
-/// Assertions live in the host half: `tool/verify_navigation.dart`.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -64,11 +60,6 @@ void main() {
     navigator.currentState!.pop();
     await tester.pumpAndSettle();
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
   });
 }

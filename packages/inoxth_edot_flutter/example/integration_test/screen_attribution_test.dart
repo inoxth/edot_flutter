@@ -5,12 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
+import 'agent_export.dart';
 import 'screen_attribution_contract.dart';
-
-/// Seam 2, device half — emits telemetry across two screens and none.
-///
-/// Assertions live in the host half: `tool/verify_screen_attribution.dart`.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -46,11 +42,6 @@ void main() {
     Edot.clearActiveView();
     Edot.tracer.startSpan(spanWithNoScreen).end();
 
-    await Edot.flush();
-
-    if (Platform.isIOS) {
-      // ADR-0011: flush cannot force the iOS persistence worker to upload.
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
   });
 }

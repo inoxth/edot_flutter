@@ -5,23 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
-/// Seam 2, device half — emits telemetry through the real Agent.
-///
-/// This code runs **on the device**, which cannot read the collector's output
-/// file on the host. So the assertions live in a host-side step that runs after
-/// this one: see `tool/verify_tracer_bullet.dart`.
-///
-/// What this half proves on its own: the Agent initialises against a real
-/// endpoint, spans can be created and ended, and `flush()` returns without
-/// error. What arrived is the host step's job.
-/// How long iOS needs after `flush()` before the persistence worker has
-/// uploaded.
-///
-/// The default `PersistencePerformancePreset` keeps a file writable for up to
-/// 4.75s, refuses to read one younger than 5.25s, and re-schedules exports on a
-/// ~5s delay. Worst case is therefore around 11s; 15s leaves margin without
-/// making the tier slow enough to skip.
-const _iosPersistenceUploadWindow = Duration(seconds: 15);
+import 'agent_export.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -62,19 +46,6 @@ void main() {
 
     // The point of shipping flush() in this ticket: without it the host step
     // would have to wait out a batch timer.
-    await Edot.flush();
-
-    // On Android flush() is sufficient: the span is on the wire before this
-    // returns, and the host half asserts immediately.
-    //
-    // On iOS it is not. apm-agent-ios wraps its OTLP exporter in
-    // PersistenceSpanExporterDecorator, and the batch processor's forceFlush
-    // calls the exporter's `export` but never its `flush` — so flush() leaves
-    // spans in the on-disk buffer and only the persistence worker's own timer
-    // uploads them. See ADR-0011. The wait covers that timer; without it the app
-    // is killed with the spans still on disk.
-    if (Platform.isIOS) {
-      await Future<void>.delayed(_iosPersistenceUploadWindow);
-    }
+    await flushUntilAssertable();
   });
 }
