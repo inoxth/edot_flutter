@@ -1,8 +1,5 @@
 # inoxth_edot_flutter_dio
 
-> **Unofficial.** Not built or supported by Elastic. It wraps Elastic's own EDOT mobile
-> Agents, which are pinned.
-
 Dio integration for [`inoxth_edot_flutter`](../inoxth_edot_flutter/README.md). Adds one client
 span per Dio request, carrying the same attributes and the same W3C Trace Context as the
 plugin's own `EdotHttpClient`.
@@ -26,8 +23,8 @@ satisfy unless you asked for it.
 
 ```yaml
 dependencies:
-  inoxth_edot_flutter: ^0.0.1
-  inoxth_edot_flutter_dio: ^0.0.1
+  inoxth_edot_flutter: ^0.1.0
+  inoxth_edot_flutter_dio: ^0.1.0
 ```
 
 Start the plugin as its README describes, then add the interceptor to the `Dio` instance the

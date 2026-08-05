@@ -1,10 +1,5 @@
 # inoxth_edot_flutter
 
-> **Unofficial.** Not affiliated with or endorsed by Elastic N.V. EDOT does not officially
-> support Flutter — EDOT Android's own documentation states that hybrid frameworks such as
-> Flutter are not supported. This plugin wraps the native EDOT mobile Agents anyway, and
-> everything below that they cannot do is listed rather than hidden.
-
 Flutter plugin for the Elastic Distribution of OpenTelemetry (EDOT) mobile Agents. It emits the
 telemetry the native Agents produce, so a Flutter app reports into Elastic the same way a native
 app does.

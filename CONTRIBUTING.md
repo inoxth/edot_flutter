@@ -25,10 +25,10 @@ A pub workspace of four packages, driven by melos:
 
 | Path | What it is |
 |---|---|
-| `packages/inoxth_edot_flutter` | The plugin: Dart API, both native implementations, `package:http` tracing |
+| [`packages/inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | The plugin: Dart API, both native implementations, `package:http` tracing |
 | `packages/inoxth_edot_flutter/example` | Demo app, and home of the Seam 2 tests (`example/tool/verify_*.dart`) |
-| `packages/inoxth_edot_flutter_dio` | Dio interceptor, shipped separately |
-| `packages/edot_collector_harness` | Seam 2 test harness — runs a collector, reads telemetry back. Never published |
+| [`packages/inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor, shipped separately |
+| [`packages/edot_collector_harness`](packages/edot_collector_harness/README.md) | Seam 2 test harness — runs a collector, reads telemetry back. Never published |
 | `tool/collector/` | The OpenTelemetry Collector definition the harness runs |
 | `docs/adr/` | Every architecture decision, numbered. The rationale behind the limitations |
 | `docs/agents/` | Issue-tracker, triage-label and domain conventions |
