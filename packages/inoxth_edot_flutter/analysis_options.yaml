@@ -1,4 +1,6 @@
-include: package:flutter_lints/flutter.yaml
-
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+# The analyzer resolves the nearest options file, so this one governs the
+# package. It exists only to pull in the repo-wide config — strict language
+# modes, the extra lints, and public_member_api_docs — which a bare
+# `flutter_lints` include (the Flutter template default) would otherwise shadow.
+# No deviations: this is the package the strict settings are for.
+include: ../../analysis_options.yaml

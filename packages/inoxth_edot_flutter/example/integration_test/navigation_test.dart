@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:edot_collector_harness/edot_collector_harness.dart';
@@ -50,7 +51,7 @@ void main() {
 
     // Not awaited: the future a push returns completes when the route is *popped*, so
     // awaiting it here would wait for the pop below and deadlock the test.
-    navigator.currentState!.pushNamed<void>(orderRoute);
+    unawaited(navigator.currentState!.pushNamed<void>(orderRoute));
     await tester.pumpAndSettle();
 
     // While the order screen is the Active View, so the export can be checked against the

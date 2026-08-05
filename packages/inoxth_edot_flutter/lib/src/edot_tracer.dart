@@ -37,6 +37,7 @@ enum EdotSpanKind {
 /// so spans can be created from synchronous code such as build and paint
 /// callbacks.
 class EdotTracer {
+  /// Creates a tracer backed by the real wall clock.
   EdotTracer() : _now = _utcNow, _elapsed = null;
 
   /// Injects the clocks, so the timestamp rules in ADR-0005 are testable — a
@@ -146,6 +147,7 @@ class EdotSpan {
   /// which the Agent owns and Dart never sees.
   final String shadowId;
 
+  /// The span's name, as passed to [EdotTracer.startSpan].
   final String name;
 
   final DateTime _startedAt;

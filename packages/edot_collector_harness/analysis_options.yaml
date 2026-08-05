@@ -1,0 +1,12 @@
+# Inherits the repo-wide config so the harness is held to the same strict
+# language modes and lints as the rest of the repo.
+include: ../../analysis_options.yaml
+
+linter:
+  rules:
+    # The harness is `publish_to: none` Seam 2 test infrastructure, imported only
+    # by this repo's own integration suites — not a package external consumers
+    # depend on, which is what the root's public_member_api_docs is written for.
+    # Off here only (it would otherwise raise 46 findings), so the rule keeps its
+    # teeth on the plugin and the Dio package, which do have an external surface.
+    public_member_api_docs: false

@@ -3,7 +3,25 @@
 /// The names are the wire values, matching the React Native SDK's `emitLog`
 /// signature exactly (Fleet Alignment). Do not rename these to OpenTelemetry's
 /// `WARN`/`ERROR` spellings without changing the React Native SDK in lockstep.
-enum EdotSeverity { trace, debug, info, warn, error, fatal }
+enum EdotSeverity {
+  /// Finest-grained tracing detail.
+  trace,
+
+  /// Diagnostic detail useful while debugging.
+  debug,
+
+  /// Ordinary informational record.
+  info,
+
+  /// A concern that did not stop the operation.
+  warn,
+
+  /// A failure in the operation.
+  error,
+
+  /// A failure severe enough to threaten the app.
+  fatal,
+}
 
 /// Kind of instrument a recorded metric goes to.
 ///

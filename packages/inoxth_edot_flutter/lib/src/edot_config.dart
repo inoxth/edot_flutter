@@ -16,25 +16,39 @@ sealed class EdotAuth {
 
 /// Authenticates with an Elastic API key.
 final class EdotApiKeyAuth extends EdotAuth {
+  /// Wraps the API [key].
   const EdotApiKeyAuth(this.key);
 
+  /// The Elastic API key sent with every export. Never appears in a
+  /// [EdotConfig.toString].
   final String key;
 }
 
 /// Authenticates with an Elastic secret token.
 final class EdotSecretTokenAuth extends EdotAuth {
+  /// Wraps the secret [token].
   const EdotSecretTokenAuth(this.token);
 
+  /// The Elastic secret token sent with every export. Never appears in a
+  /// [EdotConfig.toString].
   final String token;
 }
 
 /// Sends no credential.
 final class EdotNoAuth extends EdotAuth {
+  /// Creates the no-credential auth.
   const EdotNoAuth();
 }
 
 /// Wire protocol used to export telemetry.
-enum ExportProtocol { http, grpc }
+enum ExportProtocol {
+  /// OTLP over HTTP, the default. Elastic's managed endpoints expect it.
+  http,
+
+  /// OTLP over gRPC, for a collector configured to receive it. The port in
+  /// `serverUrl` has to be that receiver's — usually 4317 rather than 4318.
+  grpc,
+}
 
 /// Android-only configuration.
 ///
@@ -50,6 +64,8 @@ enum ExportProtocol { http, grpc }
 /// (ADR-0009). Native crashes are therefore not captured on Android at all.
 /// iOS is the asymmetric case: see [EdotIosConfig.crashReportingEnabled].
 class EdotAndroidConfig {
+  /// Creates the Android configuration. Every option defaults to the pinned
+  /// Agent's own behaviour.
   const EdotAndroidConfig({this.diskBufferingEnabled = true});
 
   /// Whether telemetry is buffered to disk before export, so it survives
@@ -78,6 +94,8 @@ class EdotAndroidConfig {
 /// therefore costs no Fleet Alignment: an app that sets none of them behaves as
 /// the React Native fleet does.
 class EdotIosConfig {
+  /// Creates the iOS configuration. Every option defaults to what the pinned
+  /// iOS Agent does on its own, which is also what the React Native SDK gets.
   const EdotIosConfig({
     this.crashReportingEnabled = true,
     this.systemMetricsEnabled = true,
@@ -141,6 +159,11 @@ class EdotIosConfig {
 /// offending field. Invalid configuration is a programming error, and failing at
 /// construction is far cheaper to diagnose than silence in production.
 class EdotConfig {
+  /// Creates and validates the configuration.
+  ///
+  /// Throws [ArgumentError] naming the offending field if any identity value is
+  /// blank or carries a `,` or `=`, or if `sessionSamplingRate` is outside
+  /// `0.0..1.0`, or if `serverUrl` is not an absolute http/https URL.
   EdotConfig({
     required this.serviceName,
     required this.serviceVersion,

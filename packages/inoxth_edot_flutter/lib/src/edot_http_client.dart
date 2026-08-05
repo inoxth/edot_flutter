@@ -37,6 +37,8 @@ import 'edot_tracer.dart';
 /// ADR-0001. Starting the request inside [EdotTracer.runWithParent] avoids it,
 /// because the Agent only adds a parent to a span that has none.
 class EdotHttpClient extends http.BaseClient {
+  /// Wraps the client that actually performs the requests. Pass an existing
+  /// configured client, or a plain `http.Client()` to trace directly.
   EdotHttpClient(this._inner);
 
   final http.Client _inner;

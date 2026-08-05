@@ -25,12 +25,14 @@ import 'package:flutter/widgets.dart';
 /// through a build, so it is captured as an uncaught async error and no fallback
 /// appears; there is nothing rebuilding for one to replace.
 class EdotErrorBoundary extends StatefulWidget {
+  /// Wraps [child], rendering [fallback] in its place if it fails to build.
   const EdotErrorBoundary({
     required this.child,
     required this.fallback,
     super.key,
   });
 
+  /// The subtree this boundary encloses.
   final Widget child;
 
   /// Built in place of whatever failed. Receives the error, so a debug build can show

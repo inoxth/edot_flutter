@@ -5,6 +5,7 @@ import 'edot_ids.dart';
 /// The screen currently visible to the user.
 @immutable
 class EdotActiveView {
+  /// Binds a Screen [name] to a fresh entry [id].
   const EdotActiveView(this.name, this.id);
 
   /// The Screen Name: a low-cardinality label, with variable path segments
@@ -35,8 +36,12 @@ class EdotActiveView {
 /// honest model there (ADR-0004).
 EdotActiveView? _activeView;
 
+/// The current Active View, or null when none is set.
 EdotActiveView? get activeView => _activeView;
 
+/// Sets the Active View to [name], minting a fresh entry id for it.
+///
+/// Throws [ArgumentError] if [name] is blank.
 void setActiveView(String name) {
   if (name.trim().isEmpty) {
     throw ArgumentError.value(name, 'name', 'Screen Name must not be blank');
@@ -44,6 +49,7 @@ void setActiveView(String name) {
   _activeView = EdotActiveView(name, newLocalId());
 }
 
+/// Clears the Active View, so subsequent telemetry carries no screen attributes.
 void clearActiveView() => _activeView = null;
 
 /// Screen attributes for the current Active View, keyed by their wire names.

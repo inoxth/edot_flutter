@@ -30,6 +30,8 @@ import 'edot_tracer.dart';
 /// `Edot.setActiveView` for those; they have no transition to measure, so they get no
 /// Screen Span.
 class EdotNavigatorObserver extends NavigatorObserver {
+  /// Creates the observer. Pass [screenNameExtractor] to name screens from a
+  /// router's own route templates; omit it to use the Plugin's derivation.
   EdotNavigatorObserver({this.screenNameExtractor});
 
   /// Supplies the Screen Name for a route, overriding derivation.

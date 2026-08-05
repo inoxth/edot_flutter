@@ -37,9 +37,13 @@ const String droppedBeforeStartAttribute = 'edot.buffer.dropped';
 
 /// One held emission, kept whole so replay is a re-send rather than a reconstruction.
 class BufferedEmission {
+  /// Holds a channel call — its [method] and [arguments] — for later replay.
   const BufferedEmission(this.method, this.arguments);
 
+  /// The channel method name that was held.
   final String method;
+
+  /// The channel arguments that were held, replayed verbatim.
   final Map<String, Object?> arguments;
 }
 

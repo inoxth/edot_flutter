@@ -6,8 +6,11 @@ analyzer:
     strict-inference: true
     strict-raw-types: true
   errors:
-    # This is a package others depend on, so an undocumented public API is a
-    # defect, not a style preference.
+    # `linter.rules` below switches the lint ON; this re-grades it from its
+    # default `info` to `warning`, because an undocumented public API on a
+    # package others depend on is a defect, not a style preference. Both entries
+    # are needed: a rule absent from `linter.rules` is inert no matter what
+    # `errors:` says about it.
     public_member_api_docs: warning
 
 linter:
@@ -15,6 +18,7 @@ linter:
     - always_declare_return_types
     - avoid_dynamic_calls
     - prefer_final_locals
+    - public_member_api_docs
     - require_trailing_commas
     - unawaited_futures
     - use_super_parameters

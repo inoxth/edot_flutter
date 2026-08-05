@@ -35,6 +35,8 @@ bool tracedByAnOuterLayer(HttpHeaders headers) =>
 /// `EdotHttpClient` or the Dio interceptor still propagate; requests from a third-party
 /// package are traced but do not join the trace downstream.
 class EdotHttpOverrides extends HttpOverrides {
+  /// Wraps the previously-installed overrides, so their client is still used and
+  /// this layer only adds tracing on top.
   EdotHttpOverrides(this._previous);
 
   /// The override in place before this one, if any.
@@ -200,7 +202,10 @@ class _TracedHttpClient implements HttpClient {
   set findProxy(String Function(Uri url)? f) => _inner.findProxy = f;
 
   @override
-  set keyLog(Function(String line)? callback) => _inner.keyLog = callback;
+  // The return type is spelled out where `dart:io` leaves `keyLog` raw, to
+  // satisfy strict-inference; `dynamic` keeps it the same type the base declares.
+  set keyLog(dynamic Function(String line)? callback) =>
+      _inner.keyLog = callback;
 
   @override
   void addCredentials(

@@ -102,6 +102,7 @@ String? httpTarget(String url) {
   return path.isEmpty ? '/' : path;
 }
 
+/// Scheme of [url], or null when it cannot be parsed.
 String? httpScheme(String url) => _part(url, (uri) => uri.scheme);
 
 /// Host of [url] without its port, for `net.peer.name`.

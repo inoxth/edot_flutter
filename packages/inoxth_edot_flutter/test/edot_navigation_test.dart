@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -125,7 +126,7 @@ void main() {
       );
 
       calls.clear();
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(
@@ -143,7 +144,7 @@ void main() {
 
       // The push, with no frame pumped after it: the framework reports the change of
       // topmost route synchronously, so the span exists before anything has rendered.
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
 
       final started = callsTo('spanStart').single;
       expect(callsTo('spanEnd'), isEmpty, reason: 'no frame has rendered yet');
@@ -189,7 +190,7 @@ void main() {
       Edot.setActiveView('Settings');
       calls.clear();
 
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(
@@ -210,7 +211,7 @@ void main() {
       Edot.clearActiveView();
       calls.clear();
 
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(
@@ -228,7 +229,7 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(appWith(navigator));
 
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(startedSpanNames(), [
@@ -245,7 +246,7 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(appWith(navigator));
 
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
       calls.clear();
 
@@ -266,7 +267,7 @@ void main() {
       await tester.pumpWidget(appWith(navigator));
       calls.clear();
 
-      navigator.currentState!.pushReplacementNamed('/orders');
+      unawaited(navigator.currentState!.pushReplacementNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(startedSpanNames(), ['/orders - view appearing']);
@@ -283,11 +284,13 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(appWith(navigator));
 
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
       calls.clear();
 
-      navigator.currentState!.pushNamedAndRemoveUntil('/login', (_) => false);
+      unawaited(
+        navigator.currentState!.pushNamedAndRemoveUntil('/login', (_) => false),
+      );
       await tester.pumpAndSettle();
 
       expect(startedSpanNames(), ['/login - view appearing']);
@@ -305,9 +308,11 @@ void main() {
       await tester.pumpWidget(appWith(navigator));
       calls.clear();
 
-      showDialog<void>(
-        context: navigator.currentContext!,
-        builder: (_) => const Text('a dialog'),
+      unawaited(
+        showDialog<void>(
+          context: navigator.currentContext!,
+          builder: (_) => const Text('a dialog'),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -328,9 +333,11 @@ void main() {
 
       final entryId = activeView!.id;
 
-      showDialog<void>(
-        context: navigator.currentContext!,
-        builder: (_) => const Text('a dialog'),
+      unawaited(
+        showDialog<void>(
+          context: navigator.currentContext!,
+          builder: (_) => const Text('a dialog'),
+        ),
       );
       await tester.pumpAndSettle();
       calls.clear();
@@ -352,11 +359,11 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(appWith(navigator));
 
-      navigator.currentState!.pushNamed('/orders/1');
+      unawaited(navigator.currentState!.pushNamed('/orders/1'));
       await tester.pumpAndSettle();
       final firstEntry = activeView!.id;
 
-      navigator.currentState!.pushNamed('/orders/2');
+      unawaited(navigator.currentState!.pushNamed('/orders/2'));
       await tester.pumpAndSettle();
 
       expect(activeView!.name, '/orders/{id}');
@@ -375,11 +382,11 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
       await tester.pumpWidget(appWith(navigator));
 
-      navigator.currentState!.pushNamed('/orders/1');
+      unawaited(navigator.currentState!.pushNamed('/orders/1'));
       await tester.pumpAndSettle();
       calls.clear();
 
-      navigator.currentState!.pushNamed('/orders/2');
+      unawaited(navigator.currentState!.pushNamed('/orders/2'));
       await tester.pumpAndSettle();
 
       // `last.screen.name` answers "where did the user come from". Naming the screen they
@@ -405,8 +412,8 @@ void main() {
       await tester.pumpWidget(appWith(navigator));
       calls.clear();
 
-      navigator.currentState!.pushNamed('/orders');
-      navigator.currentState!.pushNamed('/orders/1');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
+      unawaited(navigator.currentState!.pushNamed('/orders/1'));
       await tester.pumpAndSettle();
 
       final started = callsTo('spanStart');
@@ -428,8 +435,10 @@ void main() {
 
       // The `Navigator.push` form, which carries no route settings at all — the common
       // case in an app that never declared a routing table.
-      navigator.currentState!.push(
-        MaterialPageRoute<void>(builder: (_) => const Text('unnamed screen')),
+      unawaited(
+        navigator.currentState!.push(
+          MaterialPageRoute<void>(builder: (_) => const Text('unnamed screen')),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -457,7 +466,7 @@ void main() {
       );
       calls.clear();
 
-      navigator.currentState!.pushNamed('/orders/1');
+      unawaited(navigator.currentState!.pushNamed('/orders/1'));
       await tester.pumpAndSettle();
 
       expect(startedSpanNames(), ['OrderDetail - view appearing']);
@@ -536,7 +545,7 @@ void main() {
       final navigator = GlobalKey<NavigatorState>();
 
       await tester.pumpWidget(appWith(navigator));
-      navigator.currentState!.pushNamed('/orders');
+      unawaited(navigator.currentState!.pushNamed('/orders'));
       await tester.pumpAndSettle();
 
       expect(find.text('at /orders'), findsOneWidget);
