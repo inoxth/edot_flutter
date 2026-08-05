@@ -49,6 +49,40 @@ Rejected for now as unverifiable without empirical measurement; revisit if backe
 proves unreliable in practice, or when the floors rise far enough to pin an Agent that exposes its
 offset.
 
+## Amendment — Android rewrites the timestamps at export
+
+"Applied verbatim" is true of what the Agent's builders accept and false of what leaves the
+device. Found while verifying the pre-initialisation buffer at Seam 2.
+
+`co.elastic.otel.android:agent-sdk` 1.1.0 tags every span and log record with a monotonic
+**creation elapsed time** attribute, and its `ClockExporterGateManager` replaces the timestamp
+at export with that elapsed time plus the Agent's own NTP offset. Whatever the Plugin sent is
+overwritten. The classes are `ClockExporterGateManager$TimeUpdatedSpanData`,
+`$TimeUpdatedLogRecordData` and `$ElapsedTimeAttributeInterceptor`.
+
+This is a reasonable thing for the Agent to do — it is how telemetry recorded before the clock
+was synced gets a corrected absolute time — but it has two consequences the Plugin has to own:
+
+- **Telemetry held by the pre-initialisation queue is dated when it was replayed**, not when it
+  was produced, because "creation" from the Agent's point of view is the replay. The Plugin
+  sends the real timestamp and cannot make Android use it. An early-startup error therefore
+  appears at start, not before it. Durations are unaffected — a span's start and end are
+  rewritten by the same offset — so what is lost is the absolute position of held telemetry.
+- **Absolute Android timestamps depend on the Agent's clock-sync state at export.** Measured
+  twice on one emulator, the gap between two records produced three seconds apart came out as
+  6 nanoseconds and then as nearly nine hours. That is the emulator's NTP being wrong, not the
+  Plugin, but it means an absolute timestamp from an unsynchronised Android device is not
+  something to build an alert on.
+
+iOS has no equivalent rewrite: `apm-agent-ios` 1.2.1 passes the builder's timestamp through, so
+the Plugin's value is what is exported. The Plugin therefore sends the timestamp on every log
+record regardless — it is honoured on one platform and harmless on the other, and dropping it
+would make iOS date held records at replay too.
+
+Neither behaviour is assertable in the current harness, and the Seam 2 suite prints what it
+measured instead of asserting it: Android overrides the value, and iOS cannot run that suite at
+all because `flush` does not drain log records there (ADR-0011).
+
 ## Consequences
 
 - The channel protocol carries explicit start and end timestamps on every span. Both pinned Agents accept them (`SpanBuilder.setStartTimestamp`, explicit end time).

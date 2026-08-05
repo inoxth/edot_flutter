@@ -50,6 +50,42 @@ can paper over. Each is recorded in an ADR.
   says. Use `disableAgent` to switch telemetry off — that works on both platforms
   (ADR-0001).
 
+## Tracking Consent
+
+Telemetry is gated on the user's permission, in three states — `granted`, `notGranted`,
+`pending` — matching this organisation's React Native SDK so both fleets describe consent the
+same way. Only `granted` emits; `pending` withholds exactly as `notGranted` does, and exists so
+an unanswered prompt is distinguishable from a refusal.
+
+```dart
+await Edot.start(EdotConfig(
+  // ...
+  trackingConsent: EdotTrackingConsent.pending,   // nothing is emitted yet
+));
+
+// once the user answers, with no restart needed
+Edot.setTrackingConsent(EdotTrackingConsent.granted);
+```
+
+Three things to know before relying on it:
+
+- **The default is `granted`**, to match the React Native SDK — not because that is what your
+  regulator wants. An app that must not emit before asking has to pass `pending` (ADR-0015).
+- **Refused telemetry is discarded, not held.** Granting consent later does not release what
+  the app produced while consent was withheld, and withdrawing it cannot retract what has
+  already been exported.
+- **The gate covers what the Plugin emits, not what the Agent collects by itself.** iOS crash
+  reports, lifecycle events and system metrics are produced natively and never pass through the
+  gate. On Android nothing measurable escapes it, because this Plugin ships no self-instrumenting
+  artefacts — but on iOS, an app that must emit nothing at all until consent is resolved should
+  use `disableAgent` rather than `trackingConsent` (ADR-0015).
+
+Telemetry produced before `Edot.start` completes is not lost either: it is held in a bounded
+queue and emitted once the Agent is ready, oldest dropped first if the queue fills, with the
+number dropped reported as telemetry of its own (ADR-0005). Note that on Android the Agent dates
+held telemetry when it was replayed rather than when it happened — see ADR-0005 before reading
+absolute timestamps on early-startup errors.
+
 ## Packages
 
 | Package | Purpose |
@@ -96,6 +132,7 @@ dart run tool/verify_platform_config.dart -d <device>               # runs the d
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
 dart run tool/verify_error.dart -d <android-device>                 # Android only, ADR-0011
 dart run tool/verify_disk_buffering.dart -d <android-device>        # Android only, ADR-0011
+dart run tool/verify_consent.dart -d <android-device>               # Android only, ADR-0011
 ```
 
 `verify_disk_buffering.dart` is the one suite that stops the collector mid-run — it is the only way to

@@ -76,3 +76,7 @@ _Avoid_: legacy attributes, semconv, OTel conventions
 **Tracking Consent**:
 The user's permission state governing whether the Plugin emits telemetry at all.
 _Avoid_: recording, opt-in, privacy mode, sampling
+
+**Held Telemetry**:
+Telemetry the app produced before the Agent could receive it, kept in order and emitted once it can.
+_Avoid_: queued, cached, pending telemetry, retry, backlog

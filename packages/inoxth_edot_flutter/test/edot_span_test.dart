@@ -102,10 +102,27 @@ void main() {
       },
     );
 
-    test('creating a span before start throws rather than dropping it', () {
-      // Silently discarding telemetry would be indistinguishable from a quiet
-      // app. The pre-initialisation buffer ticket replaces this with queueing.
-      expect(() => Edot.tracer.startSpan('too-early'), throwsStateError);
+    test('a span created before start is held, then replayed in order', () async {
+      // Held rather than refused, and replayed start-then-end so the Agent sees a
+      // span it can build. Silently discarding it would be indistinguishable from a
+      // quiet app, and throwing would make telemetry able to break an app's startup.
+      Edot.tracer.startSpan('too-early').end();
+      expect(calls, isEmpty, reason: 'the Agent cannot receive these yet');
+
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.2.3',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+        ),
+      );
+
+      expect(calls.map((c) => c.method), [
+        'initialize',
+        'spanStart',
+        'spanEnd',
+      ]);
     });
 
     test(

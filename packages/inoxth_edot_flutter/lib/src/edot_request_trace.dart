@@ -57,7 +57,9 @@ class EdotRequestTrace {
     final rules = tracingRules;
 
     if (rules == null) {
-      // Before start there is no tracer to hold a span. Carrying on beats throwing:
+      // Deliberately not buffered like other pre-start telemetry: without rules this
+      // cannot tell the Collector Host from any other host, and tracing the Agent's own
+      // export traffic is what ADR-0006 exists to prevent. Carrying on beats throwing —
       // a transport is usually wired up during startup, and failing the app's first
       // request over telemetry would be a poor trade.
       //

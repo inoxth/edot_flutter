@@ -1,7 +1,14 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+
+import 'edot_emission.dart';
+import 'edot_log.dart';
+
+// Re-exported because every emitting file already reaches for these through this one,
+// and they moved out only so the emission gate could use them without importing the
+// channel that consults it.
+export 'edot_log.dart' show debugLoggingEnabled, edotLog;
 
 /// Name of the single [MethodChannel] between the Plugin and the Agent.
 ///
@@ -15,25 +22,35 @@ const String edotChannelName = 'inoxth_edot_flutter';
 /// The channel itself. Internal — callers use the Plugin's public API.
 const MethodChannel edotChannel = MethodChannel(edotChannelName);
 
-/// Whether the Plugin's own diagnostics are printed.
-bool debugLoggingEnabled = false;
-
-/// Emits a Plugin diagnostic.
+/// Sends a fire-and-forget call to the Agent, if the gate allows it.
 ///
-/// Callers must never pass a credential. Configuration is logged through
-/// `EdotConfig.toString`, which redacts.
-void edotLog(String message) {
-  if (!debugLoggingEnabled) return;
-  debugPrint('[edot] $message');
-}
-
-/// Sends a fire-and-forget call to the Agent.
+/// The single chokepoint every signal passes through, which is what lets the
+/// Tracking Consent gate and the pre-initialisation buffer be applied once here
+/// instead of at each of the three signal paths (see [admitEmission]). Telemetry
+/// the gate withholds never reaches the platform boundary.
 ///
 /// Span start and end must not await the Agent (ADR-0002), so failures cannot be
 /// surfaced to the caller. They are reported through [edotLog] rather than
 /// swallowed: dropping telemetry silently is indistinguishable from a quiet app,
 /// but throwing would crash a host app over a telemetry fault.
 void sendOneWay(String method, Map<String, Object?> arguments) {
+  if (!admitEmission(method, arguments)) return;
+
+  _dispatch(method, arguments);
+}
+
+/// Puts everything the gate held before the Agent was ready onto the channel.
+///
+/// In the order it was produced, so a span that started before its own end still
+/// arrives that way round. Bypasses [admitEmission] deliberately — these emissions
+/// have already been through it, and asking again would hold them a second time.
+void sendBufferedEmissions() {
+  for (final held in releaseBufferedEmissions()) {
+    _dispatch(held.method, held.arguments);
+  }
+}
+
+void _dispatch(String method, Map<String, Object?> arguments) {
   unawaited(
     edotChannel.invokeMethod<void>(method, arguments).catchError((
       Object error,

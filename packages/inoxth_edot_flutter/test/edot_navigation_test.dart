@@ -530,7 +530,7 @@ void main() {
   });
 
   group('before start', () {
-    testWidgets('navigation works, and nothing is recorded', (tester) async {
+    testWidgets('navigation works, and is held until started', (tester) async {
       // The observer is in the widget tree before `Edot.start` has necessarily completed.
       // It must not throw: telemetry is not worth breaking an app's navigation over.
       final navigator = GlobalKey<NavigatorState>();
@@ -540,8 +540,32 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('at /orders'), findsOneWidget);
-      expect(calls, isEmpty);
-      expect(activeView, isNull);
+      expect(calls, isEmpty, reason: 'the Agent cannot receive these yet');
+
+      // The Active View is Dart-side state, not an emission, so it was always set here —
+      // which is what lets telemetry produced during startup name the screen it came from.
+      expect(activeView?.name, '/orders');
+
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.0.0',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+        ),
+      );
+
+      // The first screen the user saw is no longer missing from Kibana. It used to be
+      // reported to the debug log and dropped, which made a screen nobody opened and the
+      // screen everybody opens first look identical.
+      final started = calls.where((c) => c.method == 'spanStart');
+      expect(
+        started.map((c) => (c.arguments as Map<Object?, Object?>)['name']),
+        containsAll(<String>[
+          '/home - view appearing',
+          '/orders - view appearing',
+        ]),
+      );
     });
   });
 }

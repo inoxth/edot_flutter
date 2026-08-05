@@ -60,14 +60,6 @@ void captureError(
   String? type,
 }) {
   try {
-    if (!Edot.isStarted) {
-      // Nothing to record against, and no channel to record it on. Reported rather
-      // than dropped in silence: an error before start is exactly the kind that goes
-      // missing and is never explained.
-      edotLog('error before Edot.start; not captured: $error');
-      return;
-    }
-
     final message = error.toString();
 
     Edot.log(

@@ -66,6 +66,17 @@ void main() {
     calls.clear();
   }
 
+  /// Starts without clearing [calls], for the tests that assert on what was held
+  /// before the start and replayed by it.
+  Future<void> startPluginKeepingCalls() => Edot.start(
+    EdotConfig(
+      serviceName: 'example-app',
+      serviceVersion: '1.2.3',
+      deploymentEnvironment: 'test',
+      serverUrl: 'http://localhost:4318',
+    ),
+  );
+
   Map<Object?, Object?> argumentsOf(MethodCall call) =>
       call.arguments as Map<Object?, Object?>;
 
@@ -158,8 +169,14 @@ void main() {
       );
     });
 
-    test('logging before start throws rather than dropping the record', () {
-      expect(() => Edot.log(EdotSeverity.info, 'too early'), throwsStateError);
+    test('logging before start is held, then replayed once started', () async {
+      Edot.log(EdotSeverity.info, 'too early');
+      expect(calls, isEmpty, reason: 'the Agent cannot receive this yet');
+
+      await startPluginKeepingCalls();
+
+      final replayed = calls.where((c) => c.method == 'emitLog');
+      expect(argumentsOf(replayed.single)['message'], 'too early');
     });
   });
 
@@ -213,8 +230,17 @@ void main() {
       expect(value, 1.0);
     });
 
-    test('recording before start throws rather than dropping the metric', () {
-      expect(() => Edot.recordMetric('m', 1), throwsStateError);
-    });
+    test(
+      'recording before start is held, then replayed once started',
+      () async {
+        Edot.recordMetric('m', 1);
+        expect(calls, isEmpty, reason: 'the Agent cannot receive this yet');
+
+        await startPluginKeepingCalls();
+
+        final replayed = calls.where((c) => c.method == 'recordMetric');
+        expect(argumentsOf(replayed.single)['name'], 'm');
+      },
+    );
   });
 }

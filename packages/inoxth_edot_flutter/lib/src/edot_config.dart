@@ -1,3 +1,5 @@
+import 'edot_consent.dart';
+
 /// How the Agent authenticates to the collector.
 sealed class EdotAuth {
   const EdotAuth();
@@ -147,6 +149,7 @@ class EdotConfig {
     this.auth = const EdotAuth.none(),
     this.exportProtocol = ExportProtocol.http,
     this.sessionSamplingRate = 1.0,
+    this.trackingConsent = EdotTrackingConsent.granted,
     this.debug = false,
     this.disableAgent = false,
     this.android = const EdotAndroidConfig(),
@@ -200,6 +203,22 @@ class EdotConfig {
   ///
   /// Do not use this to switch telemetry off — [disableAgent] does that on both platforms.
   final double sessionSamplingRate;
+
+  /// The user's Tracking Consent as the app starts.
+  ///
+  /// Defaults to [EdotTrackingConsent.granted], matching this organisation's React
+  /// Native SDK — which is a Fleet Alignment choice, not a claim about what your
+  /// regulator wants. **An app that must not emit before the user has answered should
+  /// start at [EdotTrackingConsent.pending]** and call [Edot.setTrackingConsent] once
+  /// they have, which takes effect immediately and needs no restart.
+  ///
+  /// Telemetry the app produces while this withholds emission is discarded, not held:
+  /// granting consent later does not release what came before it.
+  ///
+  /// Not passed to either Agent. The gate is applied in Dart, before anything reaches
+  /// the platform boundary, so sending this natively would imply a second enforcement
+  /// point that does not exist.
+  final EdotTrackingConsent trackingConsent;
 
   /// Enables the Agent's internal logging. Never includes credentials.
   final bool debug;
@@ -384,7 +403,8 @@ class EdotConfig {
         EdotSecretTokenAuth() => 'secretToken(redacted)',
         EdotNoAuth() => 'none',
       }}, exportProtocol: ${exportProtocol.name}, '
-      'sessionSamplingRate: $sessionSamplingRate, debug: $debug, '
+      'sessionSamplingRate: $sessionSamplingRate, '
+      'trackingConsent: ${trackingConsent.wireValue}, debug: $debug, '
       'disableAgent: $disableAgent, '
       // The platform blocks in full. They are the first thing to check when
       // telemetry is missing on one platform and present on the other.

@@ -82,16 +82,6 @@ class EdotNavigatorObserver extends NavigatorObserver {
   }
 
   void _enter(Route<dynamic> route) {
-    if (!Edot.isStarted) {
-      // The observer is in the widget tree before `Edot.start` has necessarily completed.
-      // Reported rather than dropped in silence, because a navigation missing from Kibana
-      // is otherwise indistinguishable from a screen nobody opened.
-      edotLog(
-        'navigation before Edot.start; not traced: ${route.settings.name}',
-      );
-      return;
-    }
-
     final name = _screenNameFor(route);
 
     // The Active View rather than the last route this observer saw. A tab switch sets the

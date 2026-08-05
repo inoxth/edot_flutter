@@ -152,6 +152,11 @@ class InoxthEdotFlutterPlugin :
             // Both the number and the text, because the number is what queries
             // filter on and the text is what a human reads in Kibana.
             .setSeverityText(severity)
+            // Dart's timestamp, applied verbatim (ADR-0005). Without it a record
+            // held before start would be dated when the Agent replayed it rather
+            // than when it happened, which for an early-startup error is the one
+            // thing worth knowing about it.
+            .setTimestamp(call.requireLong("timestampUs"), TimeUnit.MICROSECONDS)
             .setBody(call.requireString("message"))
             .setAllAttributes(decodeTaggedAttributes(call.argument("attributes")))
             .emit()

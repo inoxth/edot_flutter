@@ -26,6 +26,7 @@ library;
 export 'src/edot.dart' show Edot;
 export 'src/edot_active_view.dart' show EdotActiveView;
 export 'src/edot_channel.dart' show edotChannelName;
+export 'src/edot_consent.dart' show EdotTrackingConsent;
 export 'src/edot_config.dart'
     show
         EdotAndroidConfig,

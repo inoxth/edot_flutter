@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 
 import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
+import 'edot_consent.dart';
+import 'edot_emission.dart' as emission;
 import 'edot_errors.dart';
 // Imported a second time under a prefix so [Edot.isolateErrorPort] can forward to the
 // library getter of the same name. Unprefixed, the name inside the getter's own body
@@ -24,9 +26,14 @@ import 'edot_tracer.dart';
 /// would imply an independence that does not exist.
 abstract final class Edot {
   static EdotTracer? _tracer;
+  static bool _started = false;
 
   /// Whether [start] has completed.
-  static bool get isStarted => _tracer != null;
+  ///
+  /// Tracked separately from [_tracer] now that the tracer is available before the
+  /// Agent is: telemetry produced early is held rather than refused, so the presence
+  /// of a tracer no longer means the Agent is running.
+  static bool get isStarted => _started;
 
   /// Starts the Agent.
   ///
@@ -38,7 +45,7 @@ abstract final class Edot {
   /// Transport failures are not reported here — the Agent buffers to disk and
   /// retries, so an unreachable collector is not a startup error.
   static Future<void> start(EdotConfig config) async {
-    if (_tracer != null) {
+    if (_started) {
       throw StateError(
         'Edot.start has already been called. Starting twice would leave two '
         'export pipelines running.',
@@ -48,9 +55,15 @@ abstract final class Edot {
     debugLoggingEnabled = config.debug;
     edotLog('starting agent: $config');
 
+    // Before the Agent is told anything, so telemetry held from before this call is
+    // judged by the consent the app is starting with — and discarded rather than
+    // replayed when that consent withholds it.
+    emission.setTrackingConsent(config.trackingConsent);
+
     await edotChannel.invokeMethod<void>('initialize', encodeConfig(config));
 
-    _tracer = EdotTracer();
+    _started = true;
+    _tracer ??= EdotTracer();
     setTracingRules(EdotTracingRules.fromConfig(config));
 
     // After the rules, never before: the override starts tracing the moment it is in
@@ -68,20 +81,41 @@ abstract final class Edot {
     // always had.
     installErrorHandlers();
 
+    // Last, so everything above is in place before the held telemetry moves: the
+    // Agent is initialised and can receive it, and the rules that decide what gets
+    // traced are set.
+    sendBufferedEmissions();
+    _reportHeldTelemetryLoss();
+
     edotLog('agent started');
   }
 
-  /// Creates spans. Available once [start] has completed.
-  static EdotTracer get tracer {
-    final tracer = _tracer;
-    if (tracer == null) {
-      throw StateError(
-        'Edot.start must complete before creating spans. Telemetry produced '
-        'before then is currently dropped rather than queued.',
-      );
-    }
-    return tracer;
+  /// Reports how much held telemetry the buffer had to drop, if any.
+  ///
+  /// As telemetry of its own, because a bound nobody can see is indistinguishable
+  /// from an app that was quiet (ADR-0005). Emitted after the replay so it cannot be
+  /// the thing that pushes the buffer over its own limit.
+  static void _reportHeldTelemetryLoss() {
+    final dropped = emission.droppedEmissionCount;
+    if (dropped == 0) return;
+
+    emission.clearDroppedEmissionCount();
+
+    log(
+      EdotSeverity.warn,
+      'telemetry produced before Edot.start exceeded the buffer and was dropped',
+      attributes: <String, Object>{
+        emission.droppedBeforeStartAttribute: dropped,
+      },
+    );
   }
+
+  /// Creates spans.
+  ///
+  /// Usable before [start]: spans produced then are held and replayed once the Agent
+  /// is running (ADR-0005). Their timestamps are captured when they happen, not when
+  /// they are replayed, so an early span's duration is its real one.
+  static EdotTracer get tracer => _tracer ??= EdotTracer();
 
   /// The screen currently visible to the user, or null when none is set.
   static active_view.EdotActiveView? get activeView => active_view.activeView;
@@ -126,10 +160,12 @@ abstract final class Edot {
     String message, {
     Map<String, Object> attributes = const {},
   }) {
-    _requireStarted('emit a log record');
-
     sendOneWay('emitLog', <String, Object?>{
       'severity': severity.name,
+      // Stamped here rather than on arrival, for the same reason spans are (ADR-0005)
+      // — and it matters more for a record than a span, because a record held before
+      // start would otherwise be dated when the Agent replayed it.
+      'timestampUs': DateTime.now().toUtc().microsecondsSinceEpoch,
       'message': message,
       'attributes': encodeLogAttributes({
         ...active_view.activeViewAttributes(),
@@ -195,8 +231,6 @@ abstract final class Edot {
     EdotMetricKind kind = EdotMetricKind.counter,
     Map<String, String> attributes = const {},
   }) {
-    _requireStarted('record a metric');
-
     sendOneWay('recordMetric', <String, Object?>{
       'name': name,
       // Always a double. The Agent's meter takes one, and sending a whole number
@@ -205,12 +239,6 @@ abstract final class Edot {
       'metricType': kind.name,
       'attributes': attributes,
     });
-  }
-
-  static void _requireStarted(String action) {
-    if (_tracer == null) {
-      throw StateError('Edot.start must complete before you can $action.');
-    }
   }
 
   /// Drains the Agent's in-memory buffers.
@@ -240,16 +268,39 @@ abstract final class Edot {
   /// Because of all of the above, do not build a shutdown path that assumes
   /// telemetry has left the device once this returns.
   static Future<void> flush() async {
-    if (_tracer == null) {
+    if (!_started) {
       throw StateError('Edot.start must complete before flushing.');
     }
     await edotChannel.invokeMethod<void>('flush');
   }
 
+  /// The user's Tracking Consent right now.
+  ///
+  /// [EdotTrackingConsent.granted] until told otherwise, matching the React Native
+  /// SDK — see [EdotConfig.trackingConsent] before relying on that default.
+  static EdotTrackingConsent get trackingConsent => emission.trackingConsent;
+
+  /// Records the user's Tracking Consent, in effect from the very next emission.
+  ///
+  /// Call this when the user answers a permission prompt, and whenever they change
+  /// the answer. No restart is needed in either direction, and nothing is queued for
+  /// a later yes: telemetry the app produces while consent withholds emission is
+  /// discarded, because a later grant does not make it acceptable to have collected.
+  ///
+  /// Withdrawing consent cannot retract telemetry already exported. That has left the
+  /// device and the Plugin has no way to reach it — deleting it is a matter for
+  /// whoever administers the Elastic cluster.
+  ///
+  /// Usable before [start], so an app can settle consent before any telemetry exists.
+  static void setTrackingConsent(EdotTrackingConsent consent) =>
+      emission.setTrackingConsent(consent);
+
   /// Clears state between tests. Does not stop the Agent.
   @visibleForTesting
   static void resetForTesting() {
     _tracer = null;
+    _started = false;
+    emission.resetEmissionGate();
     debugLoggingEnabled = false;
     active_view.clearActiveView();
     clearTracingRules();

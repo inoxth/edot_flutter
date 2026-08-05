@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
-import 'package:inoxth_edot_flutter/src/edot_channel.dart'
-    show debugLoggingEnabled;
 
 /// Seam 1 — capturing Dart Errors.
 ///
@@ -438,7 +436,7 @@ void main() {
   });
 
   group('before start', () {
-    test('an error is not captured, and nothing throws', () async {
+    test('an error is held rather than lost, and nothing throws', () async {
       // The handlers are not installed yet, so this is the direct call. It must not
       // throw: a telemetry fault during error handling would replace the error the app
       // was trying to report.
@@ -449,28 +447,52 @@ void main() {
       // anything was sent.
       await Future<void>.delayed(Duration.zero);
 
+      // Nothing has crossed yet, because the Agent could not receive it.
       expect(calls, isEmpty);
+
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.0.0',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      // An error thrown during startup is the one this buffer exists for: it used to be
+      // reported to the debug log and dropped, which is how an early crash goes missing.
+      final record = calls.singleWhere((c) => c.method == 'emitLog');
+      final arguments = record.arguments as Map<Object?, Object?>;
+      expect(arguments['message'], contains('early'));
     });
 
-    test('says why, in terms a developer can act on', () async {
-      // The only observable difference the pre-start check makes. Emitting the record
-      // would fail anyway — Edot.log refuses before start — so what the check is for is
-      // the diagnostic: "not captured, because the Plugin had not started" rather than a
-      // generic report of a caught StateError. An error before start is exactly the kind
-      // that goes missing and is never explained.
-      final printed = <String>[];
-      final previous = debugPrint;
-      debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
-      addTearDown(() => debugPrint = previous);
-
-      debugLoggingEnabled = true;
-      addTearDown(() => debugLoggingEnabled = false);
+    test('the record keeps the time the error happened, not the replay', () async {
+      final before = DateTime.now().toUtc().microsecondsSinceEpoch;
 
       Edot.reportError(StateError('early'));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(printed, hasLength(1));
-      expect(printed.single, contains('error before Edot.start'));
-      expect(printed.single, contains('not captured'));
+      final afterError = DateTime.now().toUtc().microsecondsSinceEpoch;
+
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.0.0',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      final record = calls.singleWhere((c) => c.method == 'emitLog');
+      final stamped =
+          (record.arguments as Map<Object?, Object?>)['timestampUs'] as int;
+
+      // Inside the window the error was actually reported in, and therefore before the
+      // start that replayed it. A record stamped on arrival would fail this, and would
+      // put an early-startup error at the wrong moment in a Kibana timeline.
+      expect(stamped, inInclusiveRange(before, afterError));
     });
   });
 }

@@ -115,7 +115,8 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
 
     guard let args = call.arguments as? [String: Any],
           let severityName = args["severity"] as? String,
-          let message = args["message"] as? String
+          let message = args["message"] as? String,
+          let timestampUs = args["timestampUs"] as? Int
     else {
       log("emitLog with malformed arguments; dropped")
       result(nil)
@@ -126,6 +127,10 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
       .get(instrumentationScopeName: Self.instrumentationScope)
       .logRecordBuilder()
       .setSeverity(severity(from: severityName))
+      // Dart's timestamp, applied verbatim (ADR-0005). Without it a record held
+      // before start would be dated when the Agent replayed it rather than when it
+      // happened, which for an early-startup error is the one thing worth knowing.
+      .setTimestamp(Self.date(microsecondsSinceEpoch: timestampUs))
       .setBody(.string(message))
       .setAttributes(decodeTaggedAttributes(args["attributes"]))
       .emit()
