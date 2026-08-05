@@ -84,8 +84,26 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     case "recordMetric": recordMetric(call, result)
 
     case "flush": flush(result)
+    case "sessionId": sessionId(result)
     default: result(FlutterMethodNotImplemented)
     }
+  }
+
+  /// Replies with the Session identifier the Agent is stamping onto telemetry.
+  ///
+  /// `session(false)` rather than `session()`: the default argument refreshes the
+  /// Session's inactivity timer, so reading the identifier would extend the Session
+  /// — and a support screen displaying it would keep the Session alive for as long
+  /// as someone looked at it.
+  ///
+  /// Nil before start, because the Agent has not begun a Session to report.
+  private func sessionId(_ result: @escaping FlutterResult) {
+    guard started else {
+      result(nil)
+      return
+    }
+
+    result(SessionManager.instance.session(false))
   }
 
   private func emitLog(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
@@ -341,8 +359,18 @@ public class InoxthEdotFlutterPlugin: NSObject, FlutterPlugin {
     // Turning it off here and installing a filtered equivalent below is what
     // ADR-0006 calls for — disabling it outright would leave native-origin
     // traffic untraced, which is a different blind spot rather than a fix.
+    //
+    // Everything else follows the iOS configuration block, whose defaults are the
+    // Agent's own. Read with `?? true` rather than `?? false`: a value missing from
+    // the map means an older Dart side that does not know the option, and answering
+    // "off" would silently turn instrumentation off during an upgrade.
+    let ios = args["ios"] as? [String: Any] ?? [:]
     let instrumentation = InstrumentationConfigBuilder()
       .withURLSessionInstrumentation(false)
+      .withCrashReporting(ios["crashReportingEnabled"] as? Bool ?? true)
+      .withSystemMetrics(ios["systemMetricsEnabled"] as? Bool ?? true)
+      .withAppMetricInstrumentation(ios["appMetricsEnabled"] as? Bool ?? true)
+      .withLifecycleEvents(ios["lifecycleEventsEnabled"] as? Bool ?? true)
       .build()
 
     ElasticApmAgent.start(with: builder.build(), instrumentation)

@@ -160,6 +160,27 @@ abstract final class Edot {
   /// Null before [start].
   static SendPort? get isolateErrorPort => errors.isolateErrorPort;
 
+  /// The Session identifier the Agent is stamping onto telemetry right now.
+  ///
+  /// For a support screen, so a user can read out the identifier that finds their
+  /// telemetry in Kibana. It is the same value as the `session.id` attribute on
+  /// everything the Agent is currently exporting.
+  ///
+  /// **Empty on Android.** Its Agent exposes the session manager only as internal,
+  /// explicitly-unstable API (ADR-0001), so there is nothing to read. A support
+  /// screen must therefore handle an empty answer rather than displaying it — this
+  /// organisation's React Native SDK has the same gap for the same reason, and the
+  /// two will regain it together if the Agent ever publishes an accessor.
+  ///
+  /// Reading this does not extend the Session. The iOS Agent's accessor refreshes
+  /// the inactivity timer by default, which would mean looking at a support screen
+  /// kept a Session alive — so the Plugin asks it not to.
+  ///
+  /// Empty before [start] too, rather than throwing: a support screen should be
+  /// able to ask without knowing whether telemetry was ever switched on.
+  static Future<String> currentSessionId() async =>
+      (await fetchString('sessionId')) ?? '';
+
   /// Records a metric value.
   ///
   /// One call rather than an instrument registry: [kind] selects the instrument,

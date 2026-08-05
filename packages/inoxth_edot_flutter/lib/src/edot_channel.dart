@@ -39,7 +39,7 @@ void sendOneWay(String method, Map<String, Object?> arguments) {
       Object error,
       StackTrace stackTrace,
     ) {
-      edotLog('channel call "$method" failed: $error');
+      _logChannelFailure(method, error);
     }),
   );
 }
@@ -70,7 +70,31 @@ Future<Map<String, String>> fetchStringMap(
     // where it is logged and answered with nothing.
     return Map<String, String>.of(reply);
   } catch (error) {
-    edotLog('channel call "$method" failed: $error');
+    _logChannelFailure(method, error);
     return const {};
   }
 }
+
+/// Asks the Agent for a single string and waits for it.
+///
+/// Null when the Agent has no answer, when the call fails, or when the reply is not
+/// a string. The caller decides what an absent answer means, because the two reasons
+/// for one are different: a platform that cannot answer at all, and a call that went
+/// wrong. Both are logged here; neither throws, for the same reason [sendOneWay]
+/// does not.
+Future<String?> fetchString(String method) async {
+  try {
+    return await edotChannel.invokeMethod<String>(method);
+  } catch (error) {
+    _logChannelFailure(method, error);
+    return null;
+  }
+}
+
+/// Reports a failed call, in one wording.
+///
+/// Shared by all three callers so the phrasing they are searched by stays one thing.
+/// What differs between them is what they answer the caller with, not how they say a
+/// call went wrong.
+void _logChannelFailure(String method, Object error) =>
+    edotLog('channel call "$method" failed: $error');

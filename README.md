@@ -16,6 +16,35 @@ organisation's React Native apps (`@inoxth/react-native-edot-sdk`).
 | Android | **API 24** (compileSdk 36) |
 | Flutter | **3.44** — SPM is default-on from this version |
 
+## Platform differences you need to know about
+
+The two pinned Agents are not equivalent, and none of these is something the Plugin
+can paper over. Each is recorded in an ADR.
+
+| | iOS | Android |
+|---|---|---|
+| **Native crash reporting** | On by default. **Opt out** with `EdotIosConfig(crashReportingEnabled: false)` | **Unavailable.** No toggle exists |
+| **Session identifier** | Readable via `Edot.currentSessionId()` | Always empty |
+| **Session sampling** | Unreliable — see below | Honoured |
+| **Disk buffering** | Always on, cannot be disabled | `EdotAndroidConfig(diskBufferingEnabled:)` |
+| **`flush()`** | Spans only | Spans, log records and metrics |
+
+- **Android captures no native crashes.** Its Agent installs whatever instrumentation
+  is on the classpath, with no filter and no runtime switch, so the only control is
+  which artefacts ship — and this Plugin deliberately does not ship the crash one
+  (ADR-0009). Dart Errors are captured on both platforms and are a separate signal
+  from crashes by design (ADR-0008).
+- **If your app already uses Crashlytics or Sentry, opt out of iOS crash reporting.**
+  Crash capture installs process-wide signal and Mach exception handlers; for
+  signal-based crashes whichever installed last tends to win, so leaving both on can
+  silently stop your existing reporter — which nobody notices until an incident. It is
+  on by default only to match the React Native SDK (ADR-0009).
+- **`sessionSamplingRate` is unreliable on iOS.** The pinned Agent's sampler starts out
+  sampling everything and consults the rate only when a session is new or has expired,
+  so a relaunch inside the 30-minute session window reports in full whatever the rate
+  says. Use `disableAgent` to switch telemetry off — that works on both platforms
+  (ADR-0001).
+
 ## Packages
 
 | Package | Purpose |
@@ -58,6 +87,7 @@ dart run tool/verify_navigation.dart -d <device>
 dart run tool/verify_network.dart -d <device>
 dart run tool/verify_trace_context.dart -d <device>
 dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, ADR-0006
+dart run tool/verify_platform_config.dart -d <device>               # runs the device half 4x
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
 dart run tool/verify_error.dart -d <android-device>                 # Android only, ADR-0011
 ```

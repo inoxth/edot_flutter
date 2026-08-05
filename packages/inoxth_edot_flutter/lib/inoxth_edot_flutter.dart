@@ -32,6 +32,7 @@ export 'src/edot_config.dart'
         EdotApiKeyAuth,
         EdotAuth,
         EdotConfig,
+        EdotIosConfig,
         EdotNoAuth,
         EdotSecretTokenAuth,
         ExportProtocol;

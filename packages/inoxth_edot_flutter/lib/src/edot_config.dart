@@ -40,14 +40,93 @@ enum ExportProtocol { http, grpc }
 /// visible in the type rather than buried in a doc comment, and so setting an
 /// option for the wrong platform is impossible rather than a silent no-op.
 ///
-/// The iOS equivalent arrives with the platform-passthroughs ticket, alongside
-/// the options it introduces.
+/// **There is no native crash reporting option here, and that is not an
+/// omission.** Android's Agent discovers instrumentations by scanning the
+/// classpath and installs everything it finds, with no filter and no runtime
+/// switch — so whether crash capture happens is decided by which artefacts the
+/// build includes, and this Plugin deliberately does not include the crash one
+/// (ADR-0009). Native crashes are therefore not captured on Android at all.
+/// iOS is the asymmetric case: see [EdotIosConfig.crashReportingEnabled].
 class EdotAndroidConfig {
   const EdotAndroidConfig({this.diskBufferingEnabled = true});
 
   /// Whether telemetry is buffered to disk before export, so it survives
   /// offline periods.
+  ///
+  /// Android only, and not because iOS lacks the feature: the pinned iOS Agent
+  /// persists telemetry unconditionally and offers no way to turn it off. So
+  /// telemetry survives an offline period on both platforms, and only Android
+  /// can be told not to.
   final bool diskBufferingEnabled;
+
+  @override
+  String toString() =>
+      'EdotAndroidConfig(diskBufferingEnabled: $diskBufferingEnabled)';
+}
+
+/// iOS-only configuration.
+///
+/// Scoped the same way as [EdotAndroidConfig], and for the same reason: an option
+/// that applies to one platform should be impossible to set for the other rather
+/// than silently doing nothing there.
+///
+/// Every field defaults to what the pinned iOS Agent does on its own, which is
+/// also what this organisation's React Native SDK gets — it passes a bare
+/// instrumentation configuration and exposes none of these. Adding the toggles
+/// therefore costs no Fleet Alignment: an app that sets none of them behaves as
+/// the React Native fleet does.
+class EdotIosConfig {
+  const EdotIosConfig({
+    this.crashReportingEnabled = true,
+    this.systemMetricsEnabled = true,
+    this.appMetricsEnabled = true,
+    this.lifecycleEventsEnabled = true,
+  });
+
+  /// Whether the Agent captures native crashes. On by default — an opt-*out*.
+  ///
+  /// **Turn this off if the app already has a crash reporter.** Crash capture
+  /// installs process-wide signal and Mach exception handlers, Crashlytics and
+  /// Sentry install their own, and for signal-based crashes whichever installed
+  /// last tends to win — so leaving both on can silently stop the incumbent from
+  /// reporting, which nobody notices until an incident.
+  ///
+  /// On by default despite that, to match the React Native SDK so both fleets
+  /// report crashes identically (ADR-0009). There is no Android equivalent; see
+  /// [EdotAndroidConfig].
+  final bool crashReportingEnabled;
+
+  /// Whether CPU and memory are sampled, with no app-side work.
+  ///
+  /// Two observable gauges, `system.cpu.usage` and `system.memory.usage`, read on the
+  /// metric reader's collection cycle for as long as the app runs. Turn them off for
+  /// an app that has no use for device-level metrics: they arrive continuously, so
+  /// they are the steadiest contributor to metric volume the Agent has, and nothing
+  /// else here is paid for per unit of time.
+  final bool systemMetricsEnabled;
+
+  /// Whether MetricKit reports — launch timings, app exits — are collected, with no
+  /// app-side work.
+  ///
+  /// Cheap to leave on: iOS hands these to the app in one batch a day, so it is a
+  /// negligible amount of telemetry. Turn it off if you already collect MetricKit
+  /// yourself, so the same reports are not counted twice under two names.
+  final bool appMetricsEnabled;
+
+  /// Whether foreground and background transitions are recorded.
+  ///
+  /// One span per transition, carrying `lifecycle.state`. Turn it off for an app that
+  /// backgrounds and foregrounds constantly — a turn-by-turn or media app — where the
+  /// transitions outnumber everything the app itself records. Leave it on otherwise:
+  /// it is what tells a session that ended from a user who walked away.
+  final bool lifecycleEventsEnabled;
+
+  @override
+  String toString() =>
+      'EdotIosConfig(crashReportingEnabled: $crashReportingEnabled, '
+      'systemMetricsEnabled: $systemMetricsEnabled, '
+      'appMetricsEnabled: $appMetricsEnabled, '
+      'lifecycleEventsEnabled: $lifecycleEventsEnabled)';
 }
 
 /// Configuration for [EdotConfig.new].
@@ -71,6 +150,7 @@ class EdotConfig {
     this.debug = false,
     this.disableAgent = false,
     this.android = const EdotAndroidConfig(),
+    this.ios = const EdotIosConfig(),
     this.urlSanitizer,
     this.excludedUrls = const [],
     this.tracePropagationTargets,
@@ -108,6 +188,17 @@ class EdotConfig {
   final ExportProtocol exportProtocol;
 
   /// Fraction of sessions that report, from 0.0 to 1.0 inclusive.
+  ///
+  /// **Honoured on Android; unreliable on iOS.** The pinned iOS Agent's sampler starts out
+  /// sampling everything and only consults this rate when the session manager announces a
+  /// refresh, which it does only for a session that is new or has expired. A cold start
+  /// therefore applies the rate and a warm one — a relaunch inside the 30-minute session
+  /// window — ignores it, so the iOS fleet reports more than this asks for. There is no
+  /// workaround from here: the refresh is not public API, and this organisation's React
+  /// Native SDK passes the same rate to the same Agent, so the two fleets are affected
+  /// alike. See ADR-0001.
+  ///
+  /// Do not use this to switch telemetry off — [disableAgent] does that on both platforms.
   final double sessionSamplingRate;
 
   /// Enables the Agent's internal logging. Never includes credentials.
@@ -117,6 +208,7 @@ class EdotConfig {
   final bool disableAgent;
 
   final EdotAndroidConfig android;
+  final EdotIosConfig ios;
 
   /// Last chance to change a request URL before it is recorded.
   ///
@@ -294,6 +386,9 @@ class EdotConfig {
       }}, exportProtocol: ${exportProtocol.name}, '
       'sessionSamplingRate: $sessionSamplingRate, debug: $debug, '
       'disableAgent: $disableAgent, '
+      // The platform blocks in full. They are the first thing to check when
+      // telemetry is missing on one platform and present on the other.
+      'android: $android, ios: $ios, '
       // Whether they are set, not what they are: a sanitiser is a closure with no
       // useful representation, and the patterns are the first thing to suspect when
       // a request is missing from Kibana.
@@ -337,6 +432,12 @@ Map<String, Object?> encodeConfig(EdotConfig config) {
     'secretToken': secretToken,
     'android': <String, Object?>{
       'diskBufferingEnabled': config.android.diskBufferingEnabled,
+    },
+    'ios': <String, Object?>{
+      'crashReportingEnabled': config.ios.crashReportingEnabled,
+      'systemMetricsEnabled': config.ios.systemMetricsEnabled,
+      'appMetricsEnabled': config.ios.appMetricsEnabled,
+      'lifecycleEventsEnabled': config.ios.lifecycleEventsEnabled,
     },
   };
 }

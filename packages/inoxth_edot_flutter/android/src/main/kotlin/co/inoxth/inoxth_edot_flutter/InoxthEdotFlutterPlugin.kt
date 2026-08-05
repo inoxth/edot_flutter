@@ -104,8 +104,29 @@ class InoxthEdotFlutterPlugin :
             "recordMetric" -> recordMetric(call, result)
 
             "flush" -> flush(result)
+            "sessionId" -> sessionId(result)
             else -> result.notImplemented()
         }
+    }
+
+    /**
+     * Replies with nothing: this Agent has no readable Session identifier.
+     *
+     * `agent-sdk` 1.1.0 exposes its session manager only through `$agent_sdk`
+     * internal API, documented as unstable and not for public use (ADR-0001).
+     * Reaching into it would tie this Plugin to something the Agent is free to
+     * change in a patch release, and the identifier is not worth that.
+     *
+     * Answered rather than left unimplemented, so Dart gets the same empty answer
+     * whatever the reason — a support screen has to handle an absent identifier
+     * either way, and a `MissingPluginException` would make that harder rather than
+     * clearer. The organisation's React Native SDK reports the same gap for the same
+     * reason, and both will regain the identifier together if the Agent publishes an
+     * accessor.
+     */
+    private fun sessionId(result: Result) {
+        log("session identifier is unavailable on Android; see ADR-0001")
+        result.success(null)
     }
 
     private fun emitLog(
