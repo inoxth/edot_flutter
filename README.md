@@ -8,6 +8,11 @@ Flutter plugin that surfaces the Elastic Distribution of OpenTelemetry (EDOT)
 mobile Agents to Dart, so Flutter apps emit telemetry indistinguishable from this
 organisation's React Native apps (`@inoxth/react-native-edot-sdk`).
 
+**Using the plugin in an app?** Read
+[`packages/inoxth_edot_flutter/README.md`](packages/inoxth_edot_flutter/README.md) — the setup
+guide, the recipes and the complete list of deliberate limitations live there. This file covers
+working *on* the repo.
+
 ## Requirements
 
 | | Minimum |
@@ -16,80 +21,11 @@ organisation's React Native apps (`@inoxth/react-native-edot-sdk`).
 | Android | **API 24** (compileSdk 36) |
 | Flutter | **3.44** — SPM is default-on from this version |
 
-## Platform differences you need to know about
+## Limitations
 
-The two pinned Agents are not equivalent, and none of these is something the Plugin
-can paper over. Each is recorded in an ADR.
-
-| | iOS | Android |
-|---|---|---|
-| **Native crash reporting** | On by default. **Opt out** with `EdotIosConfig(crashReportingEnabled: false)` | **Unavailable.** No toggle exists |
-| **Session identifier** | Readable via `Edot.currentSessionId()` | Always empty |
-| **Session sampling** | Unreliable — see below | Honoured |
-| **Disk buffering** | Always on, cannot be disabled | `EdotAndroidConfig(diskBufferingEnabled:)` |
-| **`flush()`** | Spans only | Spans, log records and metrics |
-
-- **Android captures no native crashes.** Its Agent installs whatever instrumentation
-  is on the classpath, with no filter and no runtime switch, so the only control is
-  which artefacts ship — and this Plugin deliberately does not ship the crash one
-  (ADR-0009). Dart Errors are captured on both platforms and are a separate signal
-  from crashes by design (ADR-0008).
-- **If your app already uses Crashlytics or Sentry, opt out of iOS crash reporting.**
-  Crash capture installs process-wide signal and Mach exception handlers; for
-  signal-based crashes whichever installed last tends to win, so leaving both on can
-  silently stop your existing reporter — which nobody notices until an incident. It is
-  on by default only to match the React Native SDK (ADR-0009).
-- **On Android, nothing is exported for the first ~3 seconds after `Edot.start`.** The Agent
-  gates its exporters until its own latches open, and `flush()` reports success while the
-  telemetry is still queued behind that gate. An app that starts the Agent, emits, and is killed
-  inside that window loses the telemetry, and no configuration shortens the wait — so do not
-  build a "start, report, exit" flow on Android (ADR-0011).
-- **Telemetry buffered through an outage arrives more than once.** The buffer retries any batch it
-  could not confirm, so after an outage the same span can reach your collector twice — verified on
-  Android. Count distinct span ids, not spans. Buffered telemetry also expires after 18 hours offline,
-  and note that a *brief* outage is survived even with buffering off, because the exporter retries in
-  memory for about 8 seconds (ADR-0011).
-- **`sessionSamplingRate` is unreliable on iOS.** The pinned Agent's sampler starts out
-  sampling everything and consults the rate only when a session is new or has expired,
-  so a relaunch inside the 30-minute session window reports in full whatever the rate
-  says. Use `disableAgent` to switch telemetry off — that works on both platforms
-  (ADR-0001).
-
-## Tracking Consent
-
-Telemetry is gated on the user's permission, in three states — `granted`, `notGranted`,
-`pending` — matching this organisation's React Native SDK so both fleets describe consent the
-same way. Only `granted` emits; `pending` withholds exactly as `notGranted` does, and exists so
-an unanswered prompt is distinguishable from a refusal.
-
-```dart
-await Edot.start(EdotConfig(
-  // ...
-  trackingConsent: EdotTrackingConsent.pending,   // nothing is emitted yet
-));
-
-// once the user answers, with no restart needed
-Edot.setTrackingConsent(EdotTrackingConsent.granted);
-```
-
-Three things to know before relying on it:
-
-- **The default is `granted`**, to match the React Native SDK — not because that is what your
-  regulator wants. An app that must not emit before asking has to pass `pending` (ADR-0015).
-- **Refused telemetry is discarded, not held.** Granting consent later does not release what
-  the app produced while consent was withheld, and withdrawing it cannot retract what has
-  already been exported.
-- **The gate covers what the Plugin emits, not what the Agent collects by itself.** iOS crash
-  reports, lifecycle events and system metrics are produced natively and never pass through the
-  gate. On Android nothing measurable escapes it, because this Plugin ships no self-instrumenting
-  artefacts — but on iOS, an app that must emit nothing at all until consent is resolved should
-  use `disableAgent` rather than `trackingConsent` (ADR-0015).
-
-Telemetry produced before `Edot.start` completes is not lost either: it is held in a bounded
-queue and emitted once the Agent is ready, oldest dropped first if the queue fills, with the
-number dropped reported as telemetry of its own (ADR-0005). Note that on Android the Agent dates
-held telemetry when it was replayed rather than when it happened — see ADR-0005 before reading
-absolute timestamps on early-startup errors.
+Deliberately not duplicated here. The complete list, each item naming the ADR that explains it,
+is in [the package README](packages/inoxth_edot_flutter/README.md#limitations) — one copy, so the
+two cannot drift apart.
 
 ## Packages
 
@@ -149,9 +85,11 @@ passing. A silently skipped Seam 2 tier reads as coverage it does not have.
 
 ## Status
 
-Foundation only. The Agent is not initialised yet and no telemetry is produced —
-that begins with the tracer-bullet ticket. See the issue tracker for the ticket
-sequence, and `docs/adr/` for the decisions the implementation is bound by.
+Feature-complete for v1. Every headline capability is implemented and verified at both test
+seams: Agent initialisation, span enrichment and parenting, logs and metrics, Active View and
+screen enrichment, navigation, network tracing through `package:http`, Dio and app-wide
+`dart:io`, W3C trace-context propagation, Dart error capture, platform configuration, the
+Session identifier, Tracking Consent, and the queue for telemetry produced before the Agent is
+ready.
 
-Full integrator documentation, including the complete list of deliberate
-limitations, lands with the documentation ticket.
+Not published to a package registry. See the issue tracker for what remains.

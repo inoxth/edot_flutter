@@ -187,7 +187,19 @@ class EdotConfig {
   /// silently go nowhere on the other.
   final String serverUrl;
 
+  /// Credential sent with every export.
+  ///
+  /// Defaults to [EdotAuth.none], which is right for a collector you run yourself and
+  /// wrong for Elastic Cloud. Never appears in [toString], so a config caught in a log
+  /// or a crash report does not carry the credential with it.
   final EdotAuth auth;
+
+  /// Wire protocol used to reach [serverUrl].
+  ///
+  /// Both platforms honour it. Defaults to [ExportProtocol.http], which is the protocol
+  /// Elastic's own managed endpoints expect; `grpc` is for a collector configured to
+  /// receive it, and the port in [serverUrl] has to be that receiver's — usually 4317
+  /// rather than 4318.
   final ExportProtocol exportProtocol;
 
   /// Fraction of sessions that report, from 0.0 to 1.0 inclusive.
@@ -226,7 +238,12 @@ class EdotConfig {
   /// Stops the Agent emitting anything, for local development.
   final bool disableAgent;
 
+  /// Options that exist on Android only. See [EdotAndroidConfig].
   final EdotAndroidConfig android;
+
+  /// Options that exist on iOS only. See [EdotIosConfig] — in particular
+  /// [EdotIosConfig.crashReportingEnabled], which is on by default and will fight an
+  /// existing crash reporter.
   final EdotIosConfig ios;
 
   /// Last chance to change a request URL before it is recorded.
