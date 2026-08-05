@@ -1,7 +1,7 @@
 # inoxth_edot_flutter_dio
 
 > **Unofficial.** Not built or supported by Elastic. It wraps Elastic's own EDOT mobile
-> Agents, which are pinned — see [ADR-0001](../../docs/adr/0001-pin-edot-agents-for-ios-15.6-and-minsdk-24.md).
+> Agents, which are pinned.
 
 Dio integration for [`inoxth_edot_flutter`](../inoxth_edot_flutter/README.md). Adds one client
 span per Dio request, carrying the same attributes and the same W3C Trace Context as the
@@ -18,10 +18,9 @@ plugin's own `EdotHttpClient`.
 ## Why it is a separate package
 
 Dart has no optional dependencies. Bundling this into the plugin would impose Dio's version
-constraint on every consumer, including the ones that never use it
-([ADR-0010](../../docs/adr/0010-dio-integration-ships-as-a-separate-package.md)). The cost is one
-extra line in your `pubspec.yaml`; the benefit is that the plugin's Dio constraint is never
-yours to satisfy unless you asked for it.
+constraint on every consumer, including the ones that never use it. The cost is one extra line
+in your `pubspec.yaml`; the benefit is that the plugin's Dio constraint is never yours to
+satisfy unless you asked for it.
 
 ## Setup
 
@@ -51,12 +50,10 @@ recorded as it was *before* the rewrite.
 ## What you get
 
 Everything the plugin's network tracing gives you, because both integrations drive the same
-`EdotRequestTrace` ([ADR-0013](../../docs/adr/0013-one-shared-request-trace-for-every-transport.md)) — the URL
-sanitizer, both exclusion rules and the trace-propagation decision are applied in one place for
-both, so the two cannot drift apart:
+`EdotRequestTrace` — the URL sanitizer, both exclusion rules and the trace-propagation decision
+are applied in one place for both, so the two cannot drift apart:
 
-- One client span per request, named `<METHOD>`, with the Elastic Mobile Attribute Set
-  ([ADR-0003](../../docs/adr/0003-emit-the-elastic-mobile-attribute-set.md)).
+- One client span per request, named `<METHOD>`, with the Elastic Mobile Attribute Set.
 - The Active View's screen attributes, so a request is attributable to the screen that made it.
 - `traceparent` on requests to hosts you propagate to, joining the server's spans to this one.
 - Request and response sizes where they can be known before the wire.
@@ -78,17 +75,14 @@ Configuration lives entirely on `EdotConfig` — `excludedUrls`, `urlSanitizer`,
   do report one. Absent rather than guessed — a wrong body size is worse than none.
 - **`traceparent` you set yourself is overwritten.** The header names the immediate parent of
   the request, and once traced that is this span.
-- **A request the plugin excludes is not traced at all** — the Collector Host
-  ([ADR-0006](../../docs/adr/0006-exclude-collector-host-requests.md)), anything
-  matching `excludedUrls`, and anything issued before `Edot.start`. The request itself proceeds
-  untouched.
+- **A request the plugin excludes is not traced at all** — the Collector Host, anything matching
+  `excludedUrls`, and anything issued before `Edot.start`. The request itself proceeds untouched.
 
 ## Using it alongside the other transports
 
 `EdotHttpClient`, `traceAllHttpTraffic` and this interceptor can all be enabled at once. A
 request is never traced twice: the transport that traced it marks it, and
-`traceAllHttpTraffic` leaves a marked request alone
-([ADR-0014](../../docs/adr/0014-app-wide-tracing-is-marker-de-duplicated.md)).
+`traceAllHttpTraffic` leaves a marked request alone.
 
 ## Limitations
 

@@ -2,11 +2,11 @@
 
 > **Unofficial.** Not affiliated with or endorsed by Elastic N.V. EDOT does not
 > officially support Flutter — EDOT Android's own documentation states that hybrid
-> frameworks such as React Native and Flutter are not supported.
+> frameworks such as Flutter are not supported.
 
 Flutter plugin that surfaces the Elastic Distribution of OpenTelemetry (EDOT)
-mobile Agents to Dart, so Flutter apps emit telemetry indistinguishable from this
-organisation's React Native apps (`@inoxth/react-native-edot-sdk`).
+mobile Agents to Dart, so a Flutter app reports into Elastic the same way a native
+app does.
 
 **Using the plugin in an app?** Read
 [`packages/inoxth_edot_flutter/README.md`](packages/inoxth_edot_flutter/README.md) — the setup
@@ -23,17 +23,19 @@ working *on* the repo.
 
 ## Limitations
 
-Deliberately not duplicated here. The complete list, each item naming the ADR that explains it,
-is in [the package README](packages/inoxth_edot_flutter/README.md#limitations) — one copy, so the
+Deliberately not duplicated here. The complete list, with the reason for each, is in
+[the package README](packages/inoxth_edot_flutter/README.md#limitations) — one copy, so the
 two cannot drift apart.
 
 ## Packages
 
-| Package | Purpose |
-|---|---|
-| `packages/inoxth_edot_flutter` | Core: Dart API, both native implementations, `package:http` tracing |
-| `packages/inoxth_edot_flutter_dio` | Dio interceptor. Separate because Dart has no optional dependencies (ADR-0010) |
-| `packages/edot_collector_harness` | Seam 2 test harness. Never published |
+Each package has its own README with the detail; this table is the map.
+
+| Package | README | Purpose |
+|---|---|---|
+| `inoxth_edot_flutter` | [README](packages/inoxth_edot_flutter/README.md) | Core: Dart API, both native implementations, `package:http` tracing |
+| `inoxth_edot_flutter_dio` | [README](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor. Separate because Dart has no optional dependencies |
+| `edot_collector_harness` | [README](packages/edot_collector_harness/README.md) | Seam 2 test harness. Never published |
 
 ## Working in this repo
 
@@ -68,12 +70,12 @@ dart run tool/verify_screen_attribution.dart -d <device>
 dart run tool/verify_navigation.dart -d <device>
 dart run tool/verify_network.dart -d <device>
 dart run tool/verify_trace_context.dart -d <device>
-dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, ADR-0006
+dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only
 dart run tool/verify_platform_config.dart -d <device>               # runs the device half 4x
-dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
-dart run tool/verify_error.dart -d <android-device>                 # Android only, ADR-0011
-dart run tool/verify_disk_buffering.dart -d <android-device>        # Android only, ADR-0011
-dart run tool/verify_consent.dart -d <android-device>               # Android only, ADR-0011
+dart run tool/verify_signals.dart -d <android-device>               # Android only
+dart run tool/verify_error.dart -d <android-device>                 # Android only
+dart run tool/verify_disk_buffering.dart -d <android-device>        # Android only
+dart run tool/verify_consent.dart -d <android-device>               # Android only
 ```
 
 `verify_disk_buffering.dart` is the one suite that stops the collector mid-run — it is the only way to

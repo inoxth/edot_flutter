@@ -2,23 +2,23 @@
 
 > **Unofficial.** Not affiliated with or endorsed by Elastic N.V. EDOT does not officially
 > support Flutter — EDOT Android's own documentation states that hybrid frameworks such as
-> React Native and Flutter are not supported. This plugin wraps the native EDOT mobile Agents
-> anyway, and everything below that they cannot do is listed rather than hidden.
+> Flutter are not supported. This plugin wraps the native EDOT mobile Agents anyway, and
+> everything below that they cannot do is listed rather than hidden.
 
-Flutter plugin for the Elastic Distribution of OpenTelemetry (EDOT) mobile Agents. Emits
-telemetry that matches this organisation's React Native apps, so one Kibana dashboard serves
-both fleets.
+Flutter plugin for the Elastic Distribution of OpenTelemetry (EDOT) mobile Agents. It emits the
+telemetry the native Agents produce, so a Flutter app reports into Elastic the same way a native
+app does.
 
 | | Minimum |
 |---|---|
-| **iOS** | **15.6** — Swift Package Manager required, **no CocoaPods support** (ADR-0007) |
+| **iOS** | **15.6** — Swift Package Manager required, **no CocoaPods support** |
 | **Android** | **API 24**, compileSdk 36 |
 | **Flutter** | **3.44** — SPM is default-on from this version |
 
 These floors are not incidental. The Agents are pinned to the newest releases that meet them
 (`apm-agent-ios` 1.2.1, `co.elastic.otel.android:agent-sdk` 1.1.0), because `apm-agent-ios`
-raised its own floor to iOS 16 in 1.3.0. **Raising the pins raises the floors** (ADR-0001).
-Your app must set its iOS deployment target to 15.6 or higher.
+raised its own floor to iOS 16 in 1.3.0. **Raising the pins raises the floors.** Your app must
+set its iOS deployment target to 15.6 or higher.
 
 ---
 
@@ -101,7 +101,7 @@ onTabSelected: (index) {
 ```
 
 Those switches get no Screen Span, only a new Active View. A Screen Span measures a
-transition the framework reported; a tab switch is not one (ADR-0004).
+transition the framework reported; a tab switch is not one.
 
 ### 4. Trace network requests
 
@@ -120,10 +120,10 @@ await Edot.start(EdotConfig(/* ... */, traceAllHttpTraffic: true));
 ```
 
 (c) covers requests you did not write, which is usually the point. Combining it with (a) or (b)
-is safe: a request is traced once, never twice (ADR-0014).
+is safe: a request is traced once, never twice.
 
 Requests to your collector's own host are **never** traced, at any path or port — otherwise
-exporting telemetry would generate telemetry (ADR-0006).
+exporting telemetry would generate telemetry.
 
 ### 5. Errors are already captured
 
@@ -184,8 +184,8 @@ final current = Edot.trackingConsent;
 
 Three things to know:
 
-- **The default is `granted`**, to match the React Native SDK — not because that is what your
-  regulator wants. Pass `pending` if you must not emit before asking (ADR-0015).
+- **The default is `granted`** — not because that is what your regulator wants. Pass `pending`
+  if you must not emit before asking.
 - **Refused telemetry is discarded, not held.** Granting later does not release what the app
   produced while consent was withheld. Withdrawing cannot retract what has already been
   exported — that has left the device.
@@ -215,7 +215,7 @@ await Edot.tracer.runWithParent(span, () async {
 Edot.log(EdotSeverity.warn, 'cart abandoned', attributes: {'cart.items': 3});
 
 // A metric. Attributes are String-valued only — a hard limit of the pinned
-// iOS Agent's legacy meter, not a simplification (ADR-0012).
+// iOS Agent's legacy meter, not a simplification.
 Edot.recordMetric('checkout.completed', 1, attributes: {'tier': 'gold'});
 ```
 
@@ -255,26 +255,25 @@ Plugin logs it and uses the derived name — navigation is never broken by telem
 
 ## Limitations
 
-Every item here is a recorded consequence of a decision, not an oversight. Each names the ADR
-that explains why.
+Every item here is a recorded consequence of a decision, not an oversight.
 
-### Absent by design (ADR-0001)
+### Absent by design
 
 The pinned Agents predate these APIs, and raising the pins would raise the platform floors.
 
 - **No user identity, no global attributes, no attribute redaction.** `apm-agent-ios` 1.2.1 has
-  no span-attribute interceptor. Android's Agent *does* — it is forgone anyway, so both fleets
-  emit the same shape.
+  no span-attribute interceptor. Android's Agent *does* — it is forgone anyway, so the two
+  platforms emit the same shape.
 - **No central configuration / OpAMP.**
 - **No Session control** — you cannot start, stop or rename a Session.
 - **`Edot.currentSessionId()` returns an empty string on Android.** Its Agent exposes
   `SessionManager` only as internal, explicitly-unstable API. A support screen must handle an
-  empty answer rather than displaying it. The React Native SDK has the same gap.
+  empty answer rather than displaying it.
 - **`sessionSamplingRate` is unreliable on iOS.** The pinned sampler starts out sampling
   everything and consults the rate only when a Session is new or expired, so a relaunch inside
   the 30-minute Session window reports in full whatever the rate says. Use `disableAgent`.
 
-### Delivery and timing (ADR-0011)
+### Delivery and timing
 
 - **`flush()` does not promise delivery.** It drains the Plugin's buffers so nothing waits on a
   batch timer. Where the telemetry goes next is the Agent's business.
@@ -289,14 +288,14 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   not spans.
 - **Telemetry buffered offline expires after 18 hours.**
 - **On Android, telemetry held before `start` is dated when it was replayed**, not when it
-  happened — the Agent re-derives every timestamp at export from its own clock (ADR-0005).
-  Durations are unaffected. iOS keeps the original time.
+  happened — the Agent re-derives every timestamp at export from its own clock. Durations are
+  unaffected. iOS keeps the original time.
 
 ### Crash reporting
 
 - **Unavailable on Android.** Its Agent installs whatever instrumentation is on the classpath
   with no filter and no runtime switch, so the only control is which artefacts ship — and this
-  plugin deliberately does not ship the crash one (ADR-0009).
+  plugin deliberately does not ship the crash one.
 - **On by default on iOS, and it will fight your incumbent.** Crash capture installs
   process-wide signal and Mach exception handlers; Crashlytics and Sentry install their own, and
   for signal-based crashes whichever installed last tends to win. **If you already have a crash
@@ -306,9 +305,9 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   ios: EdotIosConfig(crashReportingEnabled: false),
   ```
 
-  It is on by default only to match the React Native SDK.
-- **Dart errors are not crashes** (ADR-0008). They are non-fatal log records, so crash-free rate
-  reflects native crashes only — which on Android means it reflects nothing this plugin sends.
+  It is on by default because that is the Agent's own default.
+- **Dart errors are not crashes.** They are non-fatal log records, so crash-free rate reflects
+  native crashes only — which on Android means it reflects nothing this plugin sends.
 - **Dart stack traces are not symbolicated.** An obfuscated release build produces unreadable
   frames. Keep your symbol files and deobfuscate offline.
 
@@ -321,14 +320,14 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
 - **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself —
   lifecycle events, its own network instrumentation on iOS — starts its own trace. Correlate
   through `session.id` and the Active View attributes, not through trace structure.
-- **No request to the collector's host is traced, at any path or port** (ADR-0006). The
-  exclusion is host equality, so a collector on `example.com` also excludes your API on
-  `example.com`. Put them on different hosts.
+- **No request to the collector's host is traced, at any path or port.** The exclusion is host
+  equality, so a collector on `example.com` also excludes your API on `example.com`. Put them on
+  different hosts.
 
 ### The attribute set
 
 Emitted names follow the **Elastic Mobile Attribute Set** — the vocabulary the native EDOT
-Agents themselves emit, which predates the stable OpenTelemetry HTTP conventions (ADR-0003).
+Agents themselves emit, which predates the stable OpenTelemetry HTTP conventions.
 
 | Emitted | Stable OpenTelemetry equivalent |
 |---|---|
@@ -343,71 +342,29 @@ Agents themselves emit, which predates the stable OpenTelemetry HTTP conventions
 | `screen.id`, `last.screen.name` | no upstream equivalent |
 | `event.name`, `error.source` | no upstream equivalent |
 
-**Do not migrate these.** They are chosen to match what the native Agents and this
-organisation's React Native SDK emit, so one dashboard serves both fleets. Moving them here
-without moving the React Native SDK in lockstep splits the vocabulary and breaks the
-dashboards. If you want the stable set, both fleets change together.
+**Do not migrate these.** They are the vocabulary the native Agents emit; renaming them here
+would split what the plugin sends from what the Agents send and break any dashboard built on the
+native names. If you want the stable OpenTelemetry set, it has to change at the Agent, not here.
 
 Two details that matter when you write queries:
 
-- **`screen.id` is not a span id here.** In the React Native SDK it is the Screen Span's real
-  OpenTelemetry span id; this plugin never learns a span id (ADR-0002) and mints its own
-  per-visit identifier instead. Grouping or filtering on the attribute works across both
-  fleets — joining `screen.id` to a span's `span_id` field resolves on the React Native fleet
-  only. Join on the attribute on both sides.
-- **`http.url` carries less here than in the React Native SDK.** Before any sanitizer of yours
-  runs, this plugin strips the query string, the fragment and any credentials in the authority;
-  the React Native SDK strips only the query. All three routinely carry tokens or PII and none
-  of them names the resource requested. A dashboard grouping by `http.url` works on both fleets;
-  anything relying on a query parameter being present in it breaks here, deliberately. Use
-  `urlSanitizer` if you need to reshape what remains.
+- **`screen.id` is not a span id.** This plugin never learns the Agent's span ids, so it mints
+  its own per-visit identifier for the attribute. Group or filter on it as an attribute; do not
+  expect it to join against a span's `span_id` field, because it is not one.
+- **`http.url` is stripped before you see it.** Before any sanitizer of yours runs, this plugin
+  removes the query string, the fragment and any credentials in the authority — all three
+  routinely carry tokens or PII, and none of them names the resource requested. A dashboard
+  grouping by `http.url` is unaffected; anything relying on a query parameter being present in it
+  will not find one. Use `urlSanitizer` if you need to reshape what remains.
 
 ### Other
 
-- **Metric attributes are `String`-valued only** (ADR-0012). Convert numeric dimensions at the
-  call site.
-- **Dio support ships as a separate package** (ADR-0010), because Dart has no optional
-  dependencies and this package will not pull Dio into apps that do not use it.
+- **Metric attributes are `String`-valued only.** Convert numeric dimensions at the call site.
+- **Dio support ships as a separate package**, because Dart has no optional dependencies and this
+  package will not pull Dio into apps that do not use it.
 - **Telemetry produced before `start` is held in a bounded queue** of 100 entries, oldest
   dropped first. The number dropped arrives as `edot.buffer.dropped` on a warning record, so the
-  bound is visible rather than silent (ADR-0005).
-
----
-
-## Coming from the React Native SDK
-
-Configuration field names match deliberately. The API differs where Dart's idioms do.
-
-| React Native | Flutter |
-|---|---|
-| `EdotReactNative.initialize(config)` | `Edot.start(EdotConfig(...))` |
-| `getCurrentSessionId()` | `Edot.currentSessionId()` |
-| `setTrackingConsent(c)` | `Edot.setTrackingConsent(c)` |
-| `log(severity, message, attrs)` | `Edot.log(EdotSeverity.info, message, attributes: ...)` |
-| `addAction(type, name, attrs)` | no equivalent — call `Edot.log` with your own attributes |
-| `getTracerProvider()` | `Edot.tracer` |
-| `withSpanContext(span, fn)` | `Edot.tracer.runWithParent(span, fn)` |
-| `getMeterProvider()` | `Edot.recordMetric(...)` |
-| config `ignoreUrls` | `excludedUrls` |
-| config `instrumentNetworkRequests` | `traceAllHttpTraffic`, or `EdotHttpClient` / `EdotDioInterceptor` |
-| config `instrumentJsErrors` | always on — see [Errors](#5-errors-are-already-captured) |
-| config `appStateTracking`, `instrumentAppStartup` | `ios: EdotIosConfig(lifecycleEventsEnabled:)`; no Android equivalent |
-| config `graphqlUrls` | no equivalent |
-
-Unchanged in name and meaning: `serviceName`, `serviceVersion`, `deploymentEnvironment`,
-`serverUrl`, `exportProtocol`, `sessionSamplingRate`, `trackingConsent`, `urlSanitizer`,
-`tracePropagationTargets`, `debug`, `disableAgent`, `diskBufferingEnabled`.
-
-Behavioural differences worth knowing before you compare dashboards:
-
-- **Consent is enforced in Dart here, not natively.** The React Native SDK sends refused
-  telemetry across its bridge and drops it there; this plugin never hands it over. The telemetry
-  outcome is identical (ADR-0015).
-- **Screen Spans are named `<screen> - view appearing`** and carry `last.screen.name`, matching
-  the React Native SDK's own Screen Spans.
-- **iOS instrumentation toggles exist here and not there.** The React Native SDK ships the
-  Agent's defaults; this plugin defaults to the same values, so an app that sets none of them
-  behaves identically.
+  bound is visible rather than silent.
 
 ---
 
