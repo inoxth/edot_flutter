@@ -65,6 +65,28 @@ Agent's, which would duplicate every span.
   addition for a test-speed problem that is not yet a real cost.
 - Anyone bumping the iOS Agent pin should re-check whether `BatchWorker` has learned to call
   `spanExporter.flush()`. If it has, the iOS wait can be deleted and this ADR superseded.
+- **The buffer does deliver after an outage, and delivery is at-least-once.** Verified at Seam 2 on
+  Android: a span produced while the collector was unreachable arrives once it is reachable again, and
+  the same span id was seen arriving twice. `FromDiskExporterImpl` returns `TRY_LATER` for a failed
+  export, which leaves the batch on disk to be retried — so a batch it delivered but could not confirm
+  is delivered again. Anything counting spans will over-count after an outage; dashboards should treat
+  span identity, not span volume, as the truth.
+- **Disk buffering is not what makes a *brief* outage survivable.** The OTLP exporter retries in memory
+  5 times with backoffs of 1s, 1.5s, 2.25s and 3.375s, so roughly 8 seconds of unreachability is
+  survived with the buffer switched off. What the buffer adds is durability past that budget. Worth
+  knowing before attributing recovered telemetry to buffering, and it is why the Seam 2 outage is 45
+  seconds — a shorter one cannot tell the two mechanisms apart.
+- **Buffered telemetry expires after 18 hours.** Neither Agent overrides `maxFileAgeForReadMillis`, so
+  both take upstream's 18-hour default and discard anything older instead of delivering it. An app
+  offline for longer than that loses the oldest telemetry silently. Not verified — no test can wait it
+  out — so it is recorded from the pinned sources rather than measured.
+- **The offline-delivery tier is Android-only.** On iOS the upload is driven by the persistence worker,
+  whose delay grows on every failure to a 20-second ceiling and which nothing reachable can drive, per
+  the Context above. Runs there had the same case deliver everything and then nothing, so the suite
+  refuses to run outside Android rather than reporting a timer's luck as a result. iOS buffers to disk
+  unconditionally and its worker does keep batches whose export failed — `DataExportWorker` only calls
+  `markBatchAsRead` when the export did not need a retry — so the mechanism is present; it is the
+  *timing* that is unassertable.
 
 ## Amendment — on iOS, flush covers traces only, not metrics
 

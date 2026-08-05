@@ -51,32 +51,65 @@ class CollectorProcess {
     // Start from a clean slate so assertions cannot see a previous run's spans.
     await reset();
 
+    await _up(timeout);
+  }
+
+  /// Brings the collector back after [stop], keeping what it exported before.
+  ///
+  /// For the one test that needs the collector to be genuinely unreachable for a while:
+  /// telemetry buffered on the device during that window is the thing being asserted on, so
+  /// losing what arrived before the outage would erase half the comparison. Everything else
+  /// should use [start] and get a clean slate.
+  ///
+  /// Preservation is this class's job rather than the collector's. The file exporter truncates
+  /// its output whenever the container starts, and its `append` option is not a fix — turning
+  /// that on stops telemetry reaching the file inside the flush interval, which starves every
+  /// suite that flushes and reads within a short window. So [stop] carries the lines forward
+  /// in memory and [read] returns them alongside the current file's.
+  Future<void> resume({Duration timeout = const Duration(seconds: 60)}) =>
+      _up(timeout);
+
+  /// Lines exported before the running container was stopped.
+  ///
+  /// Held here because the next container start truncates the file underneath them.
+  final List<String> _carried = [];
+
+  Future<void> stop() async {
+    // Before the container goes, not after: `down` is what destroys them.
+    _carried.addAll(_currentLines());
+    await _compose(['down', '--volumes']);
+  }
+
+  Future<void> _up(Duration timeout) async {
     await _compose(['up', '--detach', '--wait']);
     await _awaitReady(timeout);
   }
 
-  Future<void> stop() => _compose(['down', '--volumes']);
-
   /// Truncates collected telemetry, so one collector can serve several tests.
   Future<void> reset() async {
+    _carried.clear();
     if (outputFile.existsSync()) await outputFile.delete();
   }
 
-  /// Reads everything exported so far.
+  /// Reads everything exported so far, including across a [stop]/[resume].
+  CollectorOutput read() =>
+      CollectorOutput.parse([..._carried, ..._currentLines()]);
+
+  /// Whole lines currently in the output file.
   ///
   /// Only whole lines. The collector appends while this reads, so the last line
   /// can be half-written — and [CollectorOutput.parse] throws on a malformed line
   /// by design, which would otherwise turn a mid-write read into a spurious
   /// failure. An unterminated final line has not finished being written, so it is
   /// not yet a line; the next poll will see it complete.
-  CollectorOutput read() {
-    if (!outputFile.existsSync()) return CollectorOutput.parse(const []);
+  List<String> _currentLines() {
+    if (!outputFile.existsSync()) return const [];
 
     final content = outputFile.readAsStringSync();
     final lines = content.split('\n');
     if (!content.endsWith('\n') && lines.isNotEmpty) lines.removeLast();
 
-    return CollectorOutput.parse(lines);
+    return lines;
   }
 
   /// Waits until [predicate] is satisfied by the exported telemetry.

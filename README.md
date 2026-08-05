@@ -39,6 +39,11 @@ can paper over. Each is recorded in an ADR.
   signal-based crashes whichever installed last tends to win, so leaving both on can
   silently stop your existing reporter — which nobody notices until an incident. It is
   on by default only to match the React Native SDK (ADR-0009).
+- **Telemetry buffered through an outage arrives more than once.** The buffer retries any batch it
+  could not confirm, so after an outage the same span can reach your collector twice — verified on
+  Android. Count distinct span ids, not spans. Buffered telemetry also expires after 18 hours offline,
+  and note that a *brief* outage is survived even with buffering off, because the exporter retries in
+  memory for about 8 seconds (ADR-0011).
 - **`sessionSamplingRate` is unreliable on iOS.** The pinned Agent's sampler starts out
   sampling everything and consults the rate only when a session is new or has expired,
   so a relaunch inside the 30-minute session window reports in full whatever the rate
@@ -90,7 +95,12 @@ dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only, 
 dart run tool/verify_platform_config.dart -d <device>               # runs the device half 4x
 dart run tool/verify_signals.dart -d <android-device>               # Android only, ADR-0011
 dart run tool/verify_error.dart -d <android-device>                 # Android only, ADR-0011
+dart run tool/verify_disk_buffering.dart -d <android-device>        # Android only, ADR-0011
 ```
+
+`verify_disk_buffering.dart` is the one suite that stops the collector mid-run — it is the only way to
+create the offline period disk buffering exists for. Expect it to take a few minutes: the outage has to
+outlast the exporter's in-memory retry to prove anything.
 
 Each host half exits 2 with an explanation when Docker is absent, rather than
 passing. A silently skipped Seam 2 tier reads as coverage it does not have.

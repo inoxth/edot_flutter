@@ -17,6 +17,10 @@ exporters:
   file:
     path: /output/telemetry.jsonl
     flush_interval: 1s
+    # Note for anyone tempted by `append: true`: it stops telemetry reaching the file within
+    # this interval, which starves every suite that flushes and reads inside a short window.
+    # The collector truncates this file whenever the container starts, and the one suite that
+    # restarts it mid-run handles that in the harness instead — see CollectorProcess.resume.
 
 processors:
   batch:
