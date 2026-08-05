@@ -1,4 +1,4 @@
-## 0.0.1
+## 0.1.0
 
 First release. A Flutter plugin wrapping the pinned EDOT mobile Agents, with the
 telemetry pipeline and every integration in place.

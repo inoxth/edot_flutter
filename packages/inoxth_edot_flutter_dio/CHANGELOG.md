@@ -1,4 +1,4 @@
-## 0.0.1
+## 0.1.0
 
 First release. Dio integration for `inoxth_edot_flutter`.
 
@@ -12,5 +12,5 @@ First release. Dio integration for `inoxth_edot_flutter`.
   request alone (ADR-0014).
 * Ships as its own package because Dart has no optional dependencies, so bundling it
   would impose Dio's version constraint on every consumer (ADR-0010).
-* Platform floors and pins inherited from `inoxth_edot_flutter` 0.0.1: iOS 15.6,
+* Platform floors and pins inherited from `inoxth_edot_flutter` 0.1.0: iOS 15.6,
   Android API 24, Flutter 3.44, Dio ^5.4.0.
