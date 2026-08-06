@@ -18,7 +18,7 @@ melos is a workspace dev-dependency and is **not on PATH** - invoke it as `dart 
 - Run/build on a device: from `packages/inoxth_edot_flutter/example/navigator`, `flutter run -d <device>`, or `flutter build apk` / `flutter build ios`. The plugin has no runnable target of its own.
 - Seam 2 (real collector; needs Docker + a device/emulator): from `packages/inoxth_edot_flutter/example/navigator`, `dart run tool/verify_<name>.dart -d <device>`. See `CONTRIBUTING.md` for the full list and per-platform notes.
 
-Analysis is strict on purpose: `strict-casts`/`strict-inference`/`strict-raw-types` and `public_member_api_docs` are on, so an **undocumented public member fails `verify`**. Only the example app and the test harness opt out of the docs lint (they are not published libraries).
+Analysis is strict on purpose: `strict-casts`/`strict-inference`/`strict-raw-types` and `public_member_api_docs` are on, so an **undocumented public member fails `verify`**. Only the example apps and the test harness opt out of the docs lint (they are not published libraries).
 
 ## Architecture
 

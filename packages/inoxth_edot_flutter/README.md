@@ -413,9 +413,11 @@ Two details that matter when you write queries:
 
 ## Example
 
-`example/` is a working app that exercises every feature above: consent states, navigation and
-tab tracking, all three network paths, error capture and the boundary, manual spans, logs,
-metrics, and the Session identifier.
+[`example/`](example/README.md) holds three apps - `basic`, `navigator`, and `go_router` - that
+integrate the plugin with different navigation approaches over the same shared demo screens.
+Between them they exercise every feature above: consent states, navigation and tab tracking, all
+three network paths, error capture and the boundary, manual spans, logs, metrics, and the Session
+identifier. The example index helps you pick one.
 
 ## Design decisions
 

@@ -1,17 +1,21 @@
-# inoxth_edot_flutter_example
+# inoxth_edot_flutter example - navigator flavor
 
-Demonstrates how to use the inoxth_edot_flutter plugin.
+The reference flavor: a multi-screen app routed with Flutter's built-in `Navigator` (named
+routes). Home / Demos / Settings tabs, with a screen per telemetry area - network, tracing,
+metrics, logs, and errors - reached through `EdotNavigatorObserver` on
+`MaterialApp.navigatorObservers`, so each push produces a Screen Span and moves the Active View.
+Between its screens it exercises every feature: manual spans, logs and metrics, all three network
+paths, error capture and the boundary, navigation and tab tracking, the Tracking Consent states,
+and the Session identifier.
 
-## Getting Started
+This flavor is also the home of the **Seam 2** integration tests (`tool/verify_*.dart`); see
+[`CONTRIBUTING.md`](../../../../CONTRIBUTING.md) for how to run them.
 
-This project is a starting point for a Flutter application.
+## Run
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+cp .env.example .env        # then point EDOT_SERVER_URL at your collector
+flutter run
+```
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+With no `EDOT_SERVER_URL` the app shows a "Missing .env" screen instead of starting the Agent.

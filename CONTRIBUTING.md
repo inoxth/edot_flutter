@@ -21,12 +21,12 @@ repo:
 
 ## Repository layout
 
-A pub workspace of four packages, driven by melos:
+A pub workspace driven by melos:
 
 | Path | What it is |
 |---|---|
 | [`packages/inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | The plugin: Dart API, both native implementations, `package:http` tracing |
-| `packages/inoxth_edot_flutter/example/` | Container for the flavor demo apps (currently `navigator/`) |
+| [`packages/inoxth_edot_flutter/example/`](packages/inoxth_edot_flutter/example/README.md) | Container for the flavor demo apps - `basic`, `navigator`, `go_router`, and the `shared` screens they reuse |
 | `packages/inoxth_edot_flutter/example/navigator/` | The `Navigator` flavor, and home of the Seam 2 tests (`example/navigator/tool/verify_*.dart`) |
 | [`packages/inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor, shipped separately |
 | [`packages/edot_collector_harness`](packages/edot_collector_harness/README.md) | Seam 2 test harness - runs a collector, reads telemetry back. Never published |
@@ -55,8 +55,8 @@ The `--no-select` flag on `test` is required: the script is package-filtered, so
 prompts for a package and fails on a non-interactive shell.
 
 The analyzer is strict on purpose - `strict-casts`, `strict-inference`, `strict-raw-types`, and
-`public_member_api_docs` are on, so an undocumented public member fails `verify`. The example and
-the harness opt out of the docs rule only (they are not published libraries); every other
+`public_member_api_docs` are on, so an undocumented public member fails `verify`. The example apps
+and the harness opt out of the docs rule only (they are not published libraries); every other
 deviation needs a comment saying why.
 
 ## Testing - the two seams

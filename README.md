@@ -50,7 +50,7 @@ Two installable packages; each has its own README.
 | [`inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | Core - config, both native implementations, navigation, errors, `package:http` tracing, logs, metrics, consent |
 | [`inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor. Separate because Dart has no optional dependencies |
 
-The repository also holds test infrastructure (`edot_collector_harness`) and the example app -
+The repository also holds test infrastructure (`edot_collector_harness`) and the example apps -
 [`CONTRIBUTING.md`](CONTRIBUTING.md) maps the full layout.
 
 ## Compatibility
@@ -105,11 +105,14 @@ Attribute value types accepted by each API.
 
 ## Examples
 
-A working example app lives in
-[`packages/inoxth_edot_flutter/example/navigator`](packages/inoxth_edot_flutter/example/navigator). It exercises
-every feature across four tabs - Telemetry, Network, Errors and Consent - covering manual spans,
-logs and metrics, all three network paths, error capture and the boundary, navigation and tab
-tracking, the consent states, and the Session identifier.
+Three example apps live under
+[`packages/inoxth_edot_flutter/example`](packages/inoxth_edot_flutter/example) - `basic`,
+`navigator`, and `go_router` - each integrating the plugin with a different navigation approach and
+sharing the same demo screens. The
+[example index](packages/inoxth_edot_flutter/example/README.md) helps you pick one and covers the
+common `.env` setup. Between them they exercise every feature: manual spans, logs and metrics, all
+three network paths, error capture and the boundary, navigation and tab tracking, the consent
+states, and the Session identifier.
 
 ## Contributing
 
