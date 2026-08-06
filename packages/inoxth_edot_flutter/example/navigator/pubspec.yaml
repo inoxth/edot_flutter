@@ -25,14 +25,15 @@ dependencies:
     #   inoxth_edot_flutter: ^x.y.z
     # See https://dart.dev/tools/pub/dependencies#version-constraints
     # The example app is bundled with the plugin so we use a path dependency on
-    # the parent directory to use the current plugin's version.
-    path: ../
+    # the plugin package - two directories up, now that each flavor app is nested
+    # under example/<flavor>/ - to use the current plugin's version.
+    path: ../../
 
   # Here so Seam 2 can prove a Dio-originated span reaches the collector. The two
   # integrations share their recording (ADR-0013), but sharing it is not the same as
   # having watched Dio's own span survive export.
   inoxth_edot_flutter_dio:
-    path: ../../inoxth_edot_flutter_dio
+    path: ../../../inoxth_edot_flutter_dio
 
   # Directly, because the device half builds a `Dio` and catches a `DioException`
   # itself. An integration package's own dependency is not this app's to borrow.
@@ -49,7 +50,7 @@ dependencies:
 dev_dependencies:
   # Seam 2: integration tests run here, against a real collector.
   edot_collector_harness:
-    path: ../../edot_collector_harness
+    path: ../../../edot_collector_harness
   integration_test:
     sdk: flutter
   flutter_test:

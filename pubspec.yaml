@@ -7,7 +7,7 @@ environment:
 # Pub workspace. Melos 8 drives task running on top of this.
 workspace:
   - packages/inoxth_edot_flutter
-  - packages/inoxth_edot_flutter/example
+  - packages/inoxth_edot_flutter/example/navigator
   - packages/inoxth_edot_flutter_dio
   - packages/edot_collector_harness
 

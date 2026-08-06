@@ -33,7 +33,7 @@ verify:
 build:android:
   stage: build
   script:
-    - cd packages/inoxth_edot_flutter/example
+    - cd packages/inoxth_edot_flutter/example/navigator
     - flutter build apk --debug
 
 # iOS build requires a macOS runner with Xcode. Enable by assigning a macOS
@@ -43,7 +43,7 @@ build:ios:
   tags:
     - macos
   script:
-    - cd packages/inoxth_edot_flutter/example
+    - cd packages/inoxth_edot_flutter/example/navigator
     - flutter build ios --debug --no-codesign
   when: manual
   allow_failure: true
@@ -55,6 +55,6 @@ build:ios:
   stage: build
   script:
     - docker compose -f tool/collector/docker-compose.yaml up -d --wait
-    - cd packages/inoxth_edot_flutter/example
+    - cd packages/inoxth_edot_flutter/example/navigator
     - flutter test integration_test
   when: manual

@@ -1,7 +1,7 @@
 # Inherits the repo-wide config so the example is held to the same strict
 # language modes and lints as the package it demonstrates — an example that
 # would not pass the package's own analysis is a poor example.
-include: ../../../analysis_options.yaml
+include: ../../../../analysis_options.yaml
 
 linter:
   rules:

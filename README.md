@@ -106,7 +106,7 @@ Attribute value types accepted by each API.
 ## Examples
 
 A working example app lives in
-[`packages/inoxth_edot_flutter/example`](packages/inoxth_edot_flutter/example). It exercises
+[`packages/inoxth_edot_flutter/example/navigator`](packages/inoxth_edot_flutter/example/navigator). It exercises
 every feature across four tabs - Telemetry, Network, Errors and Consent - covering manual spans,
 logs and metrics, all three network paths, error capture and the boundary, navigation and tab
 tracking, the consent states, and the Session identifier.

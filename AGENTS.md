@@ -15,8 +15,8 @@ melos is a workspace dev-dependency and is **not on PATH** - invoke it as `dart 
 - `dart run melos run format-check` - `dart format --set-exit-if-changed`.
 - `dart run melos run test --no-select` - Seam 1 (hermetic) tests. **The `--no-select` flag is required**, or melos prompts for a package and fails on a non-interactive shell.
 - Single test file: from a package directory, `flutter test test/<name>_test.dart`.
-- Run/build on a device: from `packages/inoxth_edot_flutter/example`, `flutter run -d <device>`, or `flutter build apk` / `flutter build ios`. The plugin has no runnable target of its own.
-- Seam 2 (real collector; needs Docker + a device/emulator): from `packages/inoxth_edot_flutter/example`, `dart run tool/verify_<name>.dart -d <device>`. See `CONTRIBUTING.md` for the full list and per-platform notes.
+- Run/build on a device: from `packages/inoxth_edot_flutter/example/navigator`, `flutter run -d <device>`, or `flutter build apk` / `flutter build ios`. The plugin has no runnable target of its own.
+- Seam 2 (real collector; needs Docker + a device/emulator): from `packages/inoxth_edot_flutter/example/navigator`, `dart run tool/verify_<name>.dart -d <device>`. See `CONTRIBUTING.md` for the full list and per-platform notes.
 
 Analysis is strict on purpose: `strict-casts`/`strict-inference`/`strict-raw-types` and `public_member_api_docs` are on, so an **undocumented public member fails `verify`**. Only the example app and the test harness opt out of the docs lint (they are not published libraries).
 
@@ -44,7 +44,7 @@ Hard constraints a change must respect:
 ## Testing - two seams
 
 - **Seam 1**: hermetic Dart with the platform channel mocked. Where most logic is proven; this is `dart run melos run test`.
-- **Seam 2**: the Agent exports real OTLP to a collector the `edot_collector_harness` package runs; the host half (`example/tool/verify_*.dart`) owns the assertions, the device half emits. Two gotchas: `flutter test` uninstalls the app when a run ends, and the collector's `file` exporter truncates on container start - so a suite cannot assume state survives a restart. A suite that cannot prove a platform's behaviour says so out loud rather than passing green.
+- **Seam 2**: the Agent exports real OTLP to a collector the `edot_collector_harness` package runs; the host half (`example/navigator/tool/verify_*.dart`) owns the assertions, the device half emits. Two gotchas: `flutter test` uninstalls the app when a run ends, and the collector's `file` exporter truncates on container start - so a suite cannot assume state survives a restart. A suite that cannot prove a platform's behaviour says so out loud rather than passing green.
 
 Prefer the highest seam a change can be proven at. Test external behaviour, not implementation. Running Seam 2 is documented in `CONTRIBUTING.md`.
 

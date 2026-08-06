@@ -26,7 +26,8 @@ A pub workspace of four packages, driven by melos:
 | Path | What it is |
 |---|---|
 | [`packages/inoxth_edot_flutter`](packages/inoxth_edot_flutter/README.md) | The plugin: Dart API, both native implementations, `package:http` tracing |
-| `packages/inoxth_edot_flutter/example` | Demo app, and home of the Seam 2 tests (`example/tool/verify_*.dart`) |
+| `packages/inoxth_edot_flutter/example/` | Container for the flavor demo apps (currently `navigator/`) |
+| `packages/inoxth_edot_flutter/example/navigator/` | The `Navigator` flavor, and home of the Seam 2 tests (`example/navigator/tool/verify_*.dart`) |
 | [`packages/inoxth_edot_flutter_dio`](packages/inoxth_edot_flutter_dio/README.md) | Dio interceptor, shipped separately |
 | [`packages/edot_collector_harness`](packages/edot_collector_harness/README.md) | Seam 2 test harness - runs a collector, reads telemetry back. Never published |
 | `tool/collector/` | The OpenTelemetry Collector definition the harness runs |
@@ -72,12 +73,12 @@ the harness runs, and the test asserts on what actually landed. Needs Docker and
 emulator.
 
 Each Seam 2 contract is **two halves**: a device half that emits (runs under `integration_test`,
-on the device) and a host half (`example/tool/verify_*.dart`) that starts the collector, drives
+on the device) and a host half (`example/navigator/tool/verify_*.dart`) that starts the collector, drives
 the device half and **owns the assertions**. They are split because the device cannot see the
 collector's output file. Run the host half - it brings the collector up and down itself:
 
 ```bash
-cd packages/inoxth_edot_flutter/example
+cd packages/inoxth_edot_flutter/example/navigator
 dart run tool/verify_tracer_bullet.dart -d <device>
 dart run tool/verify_span_enrichment.dart -d <device>
 dart run tool/verify_span_parenting.dart -d <device>

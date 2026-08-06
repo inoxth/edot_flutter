@@ -90,5 +90,5 @@ a source.
 
 ## Example
 
-`../inoxth_edot_flutter/example` exercises this interceptor alongside the other two network
-paths in its Network tab.
+`../inoxth_edot_flutter/example/navigator` exercises this interceptor alongside the other two
+network paths in its Network tab.
