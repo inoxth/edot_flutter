@@ -37,10 +37,12 @@ abstract final class DemoConfig {
 
   /// Transforms [env] into a [DemoConfigResult].
   ///
-  /// Returns [DemoConfigMissing] when `EDOT_SERVER_URL` is absent or blank;
-  /// otherwise a [DemoConfigReady] wrapping the built config. A non-empty
+  /// Returns [DemoConfigMissing] when `EDOT_SERVER_URL` is absent or blank, or
+  /// when `EDOT_SESSION_SAMPLING_RATE` is set but is not a number from 0.0 to
+  /// 1.0; otherwise a [DemoConfigReady] wrapping the built config. A non-empty
   /// `EDOT_SECRET_TOKEN` becomes [EdotAuth.secretToken]; anything else becomes
-  /// [EdotAuth.none].
+  /// [EdotAuth.none]. An absent sampling rate defaults to 1.0 (report every
+  /// session).
   static DemoConfigResult fromEnv(
     Map<String, String> env, {
     bool debug = false,
@@ -51,6 +53,17 @@ abstract final class DemoConfig {
     if (serverUrl.isEmpty) {
       return const DemoConfigMissing(
         'EDOT_SERVER_URL is not set. Copy .env.example to .env and fill it in.',
+      );
+    }
+
+    final samplingRaw = env['EDOT_SESSION_SAMPLING_RATE']?.trim() ?? '';
+    final samplingRate = samplingRaw.isEmpty
+        ? 1.0
+        : double.tryParse(samplingRaw);
+    if (samplingRate == null || samplingRate < 0.0 || samplingRate > 1.0) {
+      return DemoConfigMissing(
+        'EDOT_SESSION_SAMPLING_RATE must be a number from 0.0 to 1.0, '
+        'got "$samplingRaw".',
       );
     }
 
@@ -71,6 +84,7 @@ abstract final class DemoConfig {
         auth: token.isEmpty
             ? const EdotAuth.none()
             : EdotAuth.secretToken(token),
+        sessionSamplingRate: samplingRate,
         debug: debug,
         traceAllHttpTraffic: traceAllHttpTraffic,
         trackingConsent: trackingConsent,

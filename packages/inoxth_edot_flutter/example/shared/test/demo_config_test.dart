@@ -77,6 +77,34 @@ void main() {
     expect(result.config.auth, isA<EdotNoAuth>());
   });
 
+  test('the session sampling rate is parsed from the env onto the config', () {
+    final env = fullEnv()..['EDOT_SESSION_SAMPLING_RATE'] = '0.25';
+
+    final result = DemoConfig.fromEnv(env) as DemoConfigReady;
+
+    expect(result.config.sessionSamplingRate, 0.25);
+  });
+
+  test(
+    'an absent session sampling rate defaults to reporting every session',
+    () {
+      final result = DemoConfig.fromEnv(fullEnv()) as DemoConfigReady;
+
+      expect(result.config.sessionSamplingRate, 1.0);
+    },
+  );
+
+  test(
+    'a sampling rate that is out of range or not a number is missing config',
+    () {
+      for (final bad in ['2', '-0.5', 'abc']) {
+        final env = fullEnv()..['EDOT_SESSION_SAMPLING_RATE'] = bad;
+
+        expect(DemoConfig.fromEnv(env), isA<DemoConfigMissing>(), reason: bad);
+      }
+    },
+  );
+
   test('behaviour flags are threaded through onto the config', () {
     final result =
         DemoConfig.fromEnv(
