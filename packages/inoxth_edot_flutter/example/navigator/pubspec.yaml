@@ -35,6 +35,11 @@ dependencies:
   inoxth_edot_flutter_dio:
     path: ../../../inoxth_edot_flutter_dio
 
+  # Shared demo code across the flavor apps: the .env -> config loader (DemoConfig)
+  # this flavor's main() uses, and the demo screens a later slice moves in.
+  inoxth_edot_flutter_example_shared:
+    path: ../shared
+
   # Directly, because the device half builds a `Dio` and catches a `DioException`
   # itself. An integration package's own dependency is not this app's to borrow.
   dio: ^5.4.0
@@ -72,6 +77,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  # The .env this flavor reads its configuration from (see lib/main.dart).
+  # Bundled as an asset so flutter_dotenv can load it from the app bundle.
+  assets:
+    - .env
 
   # To add assets to your application, add an assets section, like this:
   # assets:

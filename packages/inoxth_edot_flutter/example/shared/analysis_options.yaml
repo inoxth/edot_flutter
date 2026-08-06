@@ -1,0 +1,9 @@
+# Inherits the repo-wide strict config, like the flavor apps it supports.
+include: ../../../../analysis_options.yaml
+
+linter:
+  rules:
+    # Demo support code, not a published library: its widgets and demo helpers
+    # are not an API anyone documents. Kept off here only, so the rule keeps its
+    # teeth on the packages that do have a public surface.
+    public_member_api_docs: false

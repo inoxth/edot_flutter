@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 import 'package:inoxth_edot_flutter_dio/inoxth_edot_flutter_dio.dart';
+import 'package:inoxth_edot_flutter_example_shared/inoxth_edot_flutter_example_shared.dart';
 
 /// Example app for `inoxth_edot_flutter`, exercising every documented feature.
 ///
@@ -15,36 +16,56 @@ import 'package:inoxth_edot_flutter_dio/inoxth_edot_flutter_dio.dart';
 /// tab. It is not the Plugin's default — that is `granted`, to match this organisation's
 /// React Native SDK — so the app also demonstrates the choice a regulated app has to make.
 ///
-/// Point it at a collector with:
-///
-///   flutter run --dart-define=EDOT_SERVER_URL=http://10.0.2.2:4318
-const _serverUrl = String.fromEnvironment(
-  'EDOT_SERVER_URL',
-  defaultValue: 'http://localhost:4318',
-);
-
+/// Configuration comes from this flavor's `.env` file. Copy `.env.example` to `.env` and
+/// point `EDOT_SERVER_URL` at your collector; on an Android emulator that is usually
+/// `http://10.0.2.2:4318`. With no server URL the app shows a "Missing .env" screen
+/// instead of starting the Agent.
 Future<void> main() async {
-  // Before `runApp`, so the widget tree's own errors are captured from the first frame.
-  // Telemetry produced before this call would be held and replayed rather than lost
-  // (ADR-0005) — starting early just leaves less to hold.
-  await Edot.start(
-    EdotConfig(
-      serviceName: 'edot-flutter-example',
-      serviceVersion: '1.0.0',
-      deploymentEnvironment: 'example',
-      serverUrl: _serverUrl,
-      debug: true,
+  // dotenv reads the app's asset bundle, so the binding has to exist first.
+  WidgetsFlutterBinding.ensureInitialized();
 
-      // Nothing is emitted until the user answers on the Consent tab.
-      trackingConsent: EdotTrackingConsent.pending,
+  // Built from `.env` at the edge; the mapping and the missing-config guard are proven in
+  // the shared package's Seam 1 tests. Telemetry produced before `Edot.start` is held and
+  // replayed rather than lost (ADR-0005), so starting once config is known loses nothing.
+  final result = await loadDemoConfig(
+    debug: true,
 
-      // Traces every request the app makes over dart:io, including ones inside
-      // dependencies. Requests to the collector's own host are never traced (ADR-0006).
-      traceAllHttpTraffic: true,
-    ),
+    // Traces every request the app makes over dart:io, including ones inside
+    // dependencies. Requests to the collector's own host are never traced (ADR-0006).
+    traceAllHttpTraffic: true,
+
+    // Nothing is emitted until the user answers on the Consent tab.
+    trackingConsent: EdotTrackingConsent.pending,
   );
 
-  runApp(const ExampleApp());
+  switch (result) {
+    case DemoConfigReady(:final config):
+      await Edot.start(config);
+      runApp(const ExampleApp());
+    case DemoConfigMissing(:final reason):
+      runApp(MissingEnvApp(reason: reason));
+  }
+}
+
+/// Shown when `.env` carries no `EDOT_SERVER_URL`, so the Agent is never started.
+class MissingEnvApp extends StatelessWidget {
+  const MissingEnvApp({required this.reason, super.key});
+
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'EDOT Flutter example',
+    home: Scaffold(
+      appBar: AppBar(title: const Text('EDOT example — configuration needed')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(reason, textAlign: TextAlign.center),
+        ),
+      ),
+    ),
+  );
 }
 
 class ExampleApp extends StatelessWidget {
