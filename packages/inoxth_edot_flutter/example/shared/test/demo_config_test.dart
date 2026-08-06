@@ -105,6 +105,32 @@ void main() {
     },
   );
 
+  test('the export protocol is parsed from the env, case-insensitively', () {
+    for (final entry in {
+      'grpc': ExportProtocol.grpc,
+      'GRPC': ExportProtocol.grpc,
+      'http': ExportProtocol.http,
+    }.entries) {
+      final env = fullEnv()..['EDOT_EXPORT_PROTOCOL'] = entry.key;
+
+      final result = DemoConfig.fromEnv(env) as DemoConfigReady;
+
+      expect(result.config.exportProtocol, entry.value, reason: entry.key);
+    }
+  });
+
+  test('an absent export protocol defaults to http', () {
+    final result = DemoConfig.fromEnv(fullEnv()) as DemoConfigReady;
+
+    expect(result.config.exportProtocol, ExportProtocol.http);
+  });
+
+  test('an unrecognised export protocol is reported as missing config', () {
+    final env = fullEnv()..['EDOT_EXPORT_PROTOCOL'] = 'quic';
+
+    expect(DemoConfig.fromEnv(env), isA<DemoConfigMissing>());
+  });
+
   test('behaviour flags are threaded through onto the config', () {
     final result =
         DemoConfig.fromEnv(

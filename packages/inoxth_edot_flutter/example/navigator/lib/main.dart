@@ -64,9 +64,25 @@ class ExampleApp extends StatelessWidget {
         config: config,
         onOpenDemo: (context, destination) =>
             Navigator.of(context).pushNamed(destination.routeName),
+        onOpenOrder: (context, orderId) =>
+            Navigator.of(context).pushNamed('/orders/$orderId'),
       ),
       for (final destination in DemoDestination.values)
         destination.routeName: (_) => demoScreenFor(destination),
+    },
+    // The order route carries an id in its path, so it is generated rather than a fixed
+    // entry. Its raw name stays '/orders/<id>'; the shared extractor collapses that to
+    // the 'Order detail' Screen Name, so ids do not explode cardinality.
+    onGenerateRoute: (settings) {
+      final name = settings.name;
+      if (name != null && name.startsWith('/orders/')) {
+        final orderId = name.substring('/orders/'.length);
+        return MaterialPageRoute<void>(
+          settings: settings,
+          builder: (_) => OrderDetailScreen(orderId: orderId),
+        );
+      }
+      return null;
     },
   );
 }

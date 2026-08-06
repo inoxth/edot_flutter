@@ -14,6 +14,7 @@ class NetworkScreen extends StatelessWidget {
   const NetworkScreen({super.key});
 
   static const _url = 'https://example.com/';
+  static const _unreachableUrl = 'https://does-not-exist.invalid/';
 
   Future<void> _viaEdotHttpClient() async {
     final client = EdotHttpClient(http.Client());
@@ -45,6 +46,30 @@ class NetworkScreen extends StatelessWidget {
     demoLog.add('Traced a bare dart:io request app-wide');
   }
 
+  Future<void> _failedRequest() async {
+    final client = EdotHttpClient(http.Client());
+    try {
+      await client.get(Uri.parse(_unreachableUrl));
+    } catch (_) {
+      // The span still reports - it records the failure rather than the response.
+      demoLog.add('Traced a failed request (the span records the error)');
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<void> _sequentialRequests() async {
+    final client = EdotHttpClient(http.Client());
+    try {
+      for (var n = 1; n <= 3; n++) {
+        await client.get(Uri.parse('$_url?n=$n'));
+      }
+    } finally {
+      client.close();
+    }
+    demoLog.add('Traced three sequential requests, one span each');
+  }
+
   @override
   Widget build(BuildContext context) => DemoScreen(
     title: 'Network',
@@ -68,6 +93,16 @@ class NetworkScreen extends StatelessWidget {
         'Bare dart:io HttpClient',
         'Untouched by the app, traced by the override.',
         _viaAppWideTracing,
+      ),
+      DemoActionTile(
+        'Failed request',
+        'A request to an unreachable host; the span records the failure.',
+        _failedRequest,
+      ),
+      DemoActionTile(
+        'Three sequential requests',
+        'Each produces its own span.',
+        _sequentialRequests,
       ),
     ],
   );
@@ -162,28 +197,47 @@ class MetricsScreen extends StatelessWidget {
   );
 }
 
-/// A structured event that is not an operation.
+/// A structured event that is not an operation, at each severity.
 class LogsScreen extends StatelessWidget {
   const LogsScreen({super.key});
+
+  void _emit(EdotSeverity severity, String message) {
+    Edot.log(
+      severity,
+      message,
+      attributes: {'cart.items': 3, 'cart.value': 199.5, 'guest': true},
+    );
+    demoLog.add('Emitted a $message (${severity.name}) log record');
+  }
 
   @override
   Widget build(BuildContext context) => DemoScreen(
     title: 'Logs',
     children: [
       const DemoNote(
-        'A log record is an event you want to see, not an operation you time.',
+        'A log record is an event you want to see, not an operation you time. '
+        'The same record is emitted at each severity so you can see how the '
+        'collector ranks them; every severity carries the same typed attributes.',
       ),
       DemoActionTile(
-        'Log record',
-        'A structured event with typed attributes.',
-        () {
-          Edot.log(
-            EdotSeverity.warn,
-            'cart abandoned',
-            attributes: {'cart.items': 3, 'cart.value': 199.5, 'guest': true},
-          );
-          demoLog.add('Emitted a "cart abandoned" log record');
-        },
+        'Debug',
+        'Diagnostic detail useful while debugging.',
+        () => _emit(EdotSeverity.debug, 'cart inspected'),
+      ),
+      DemoActionTile(
+        'Info',
+        'An ordinary informational record.',
+        () => _emit(EdotSeverity.info, 'cart viewed'),
+      ),
+      DemoActionTile(
+        'Warn',
+        'A concern that did not stop the operation.',
+        () => _emit(EdotSeverity.warn, 'cart abandoned'),
+      ),
+      DemoActionTile(
+        'Error',
+        'A failure in the operation.',
+        () => _emit(EdotSeverity.error, 'checkout failed'),
       ),
     ],
   );
@@ -273,3 +327,63 @@ class _ErrorsScreenState extends State<ErrorsScreen> {
 
 /// Entry point for the spawned-isolate demonstration.
 void _failingIsolate(void _) => throw StateError('the isolate went wrong');
+
+/// A user interaction, modelled as a manual span.
+///
+/// The Plugin has no dedicated interaction API (unlike the React Native SDK's
+/// `trackAction`), so this models a tracked action the way one is built from
+/// primitives: a short span named for the action, tagged with what was touched.
+/// It carries the Active View of this screen like any other span.
+class InteractionScreen extends StatelessWidget {
+  const InteractionScreen({super.key});
+
+  Future<void> _trackTap() async {
+    final span =
+        Edot.tracer.startSpan('interaction', kind: EdotSpanKind.internal)
+          ..setString('interaction.type', 'tap')
+          ..setString('interaction.element', 'checkout-button');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    span.end();
+    demoLog.add('Tracked a tap interaction as a span');
+  }
+
+  @override
+  Widget build(BuildContext context) => DemoScreen(
+    title: 'Interaction',
+    children: [
+      const DemoNote(
+        'There is no dedicated interaction API. A tracked UI action is just a short '
+        'span named for the action, so this wraps one in exactly that.',
+      ),
+      DemoActionTile(
+        'Track a tap',
+        'Wraps a user action in a span with interaction attributes.',
+        _trackTap,
+      ),
+    ],
+  );
+}
+
+/// A parameterised route, opened with an order id, to show Screen Name normalization.
+///
+/// Different ids push different paths, but the shared screen-name extractor collapses
+/// every `/orders/...` route to one low-cardinality Screen Name, so a dashboard is not
+/// flooded with one screen per order.
+class OrderDetailScreen extends StatelessWidget {
+  const OrderDetailScreen({required this.orderId, super.key});
+
+  /// The order this screen was opened for; changes per push, unlike the Screen Name.
+  final String orderId;
+
+  @override
+  Widget build(BuildContext context) => DemoScreen(
+    title: 'Order detail',
+    children: [
+      DemoNote(
+        'Opened for order #$orderId. Its Screen Name is the fixed "Order detail" - '
+        'the extractor collapses every /orders/... path to one name, so ids do not '
+        'explode dashboard cardinality.',
+      ),
+    ],
+  );
+}

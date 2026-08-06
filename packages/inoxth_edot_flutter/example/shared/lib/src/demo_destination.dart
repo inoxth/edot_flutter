@@ -24,6 +24,11 @@ enum DemoDestination {
     'Errors',
     Icons.error_outline,
     'Every path a Dart Error can arrive by.',
+  ),
+  interaction(
+    'Interaction',
+    Icons.touch_app,
+    'A user action, modelled as a manual span.',
   );
 
   const DemoDestination(this.title, this.icon, this.summary);
@@ -43,6 +48,7 @@ Widget demoScreenFor(DemoDestination destination) => switch (destination) {
   DemoDestination.metrics => const MetricsScreen(),
   DemoDestination.logs => const LogsScreen(),
   DemoDestination.errors => const ErrorsScreen(),
+  DemoDestination.interaction => const InteractionScreen(),
 };
 
 /// Maps a route name to the low-cardinality Screen Name the observer should use.
@@ -50,7 +56,11 @@ Widget demoScreenFor(DemoDestination destination) => switch (destination) {
 /// Both flavors pass this to `EdotNavigatorObserver(screenNameExtractor: ...)`, so a
 /// pushed demo is named by what it is rather than by its raw path.
 String? demoScreenNameFor(String? routeName) {
+  if (routeName == null) return null;
   if (routeName == '/') return 'Home';
+  // Any /orders/... route - resolved ('/orders/42') or templated ('/orders/:id') -
+  // collapses to one Screen Name, so ids do not explode dashboard cardinality.
+  if (routeName.startsWith('/orders/')) return 'Order detail';
   for (final destination in DemoDestination.values) {
     if (destination.routeName == routeName) return destination.title;
   }

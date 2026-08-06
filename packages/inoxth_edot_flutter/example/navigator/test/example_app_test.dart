@@ -76,6 +76,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('EdotHttpClient'), findsOneWidget);
+    // The failure and sequential-request demos live here too. They make real requests, so
+    // tapping them belongs to Seam 2; at Seam 1 it is enough that the app offers them.
+    expect(find.text('Failed request'), findsOneWidget);
+    expect(find.text('Three sequential requests'), findsOneWidget);
     // The push produced a Screen Span and moved the Active View to the pushed route,
     // named by the shared extractor rather than by its raw path.
     expect(Edot.activeView?.name, 'Network');
@@ -100,9 +104,37 @@ void main() {
 
     await runDemo('Tracing', 'Span with a nested child');
     await runDemo('Metrics', 'Counter');
-    await runDemo('Logs', 'Log record');
+
+    // Every severity, in one visit to the Logs screen.
+    await tester.tap(find.text('Logs'));
+    await tester.pumpAndSettle();
+    for (final severity in ['Debug', 'Info', 'Warn', 'Error']) {
+      await tester.tap(find.text(severity));
+      await tester.pumpAndSettle();
+    }
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await runDemo('Interaction', 'Track a tap');
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a parameterised order route collapses to one Screen Name', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Demos'));
+    await tester.pumpAndSettle();
+
+    // The raw route is /orders/1, but the shared extractor names every /orders/...
+    // route 'Order detail', so different ids do not multiply Screen Names.
+    await tester.tap(find.text('Open order #1'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('order #1'), findsOneWidget);
+    expect(Edot.activeView?.name, 'Order detail');
   });
 
   testWidgets('all three consent states are offered and take effect', (

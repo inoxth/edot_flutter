@@ -37,12 +37,13 @@ abstract final class DemoConfig {
 
   /// Transforms [env] into a [DemoConfigResult].
   ///
-  /// Returns [DemoConfigMissing] when `EDOT_SERVER_URL` is absent or blank, or
-  /// when `EDOT_SESSION_SAMPLING_RATE` is set but is not a number from 0.0 to
-  /// 1.0; otherwise a [DemoConfigReady] wrapping the built config. A non-empty
+  /// Returns [DemoConfigMissing] when `EDOT_SERVER_URL` is absent or blank, when
+  /// `EDOT_SESSION_SAMPLING_RATE` is set but is not a number from 0.0 to 1.0, or
+  /// when `EDOT_EXPORT_PROTOCOL` is set to anything but `http` or `grpc`;
+  /// otherwise a [DemoConfigReady] wrapping the built config. A non-empty
   /// `EDOT_SECRET_TOKEN` becomes [EdotAuth.secretToken]; anything else becomes
   /// [EdotAuth.none]. An absent sampling rate defaults to 1.0 (report every
-  /// session).
+  /// session) and an absent protocol to `http`.
   static DemoConfigResult fromEnv(
     Map<String, String> env, {
     bool debug = false,
@@ -67,6 +68,18 @@ abstract final class DemoConfig {
       );
     }
 
+    final protocolRaw = env['EDOT_EXPORT_PROTOCOL']?.trim().toLowerCase() ?? '';
+    final exportProtocol = switch (protocolRaw) {
+      '' || 'http' => ExportProtocol.http,
+      'grpc' => ExportProtocol.grpc,
+      _ => null,
+    };
+    if (exportProtocol == null) {
+      return DemoConfigMissing(
+        'EDOT_EXPORT_PROTOCOL must be "http" or "grpc", got "$protocolRaw".',
+      );
+    }
+
     final token = env['EDOT_SECRET_TOKEN']?.trim() ?? '';
 
     return DemoConfigReady(
@@ -85,6 +98,7 @@ abstract final class DemoConfig {
             ? const EdotAuth.none()
             : EdotAuth.secretToken(token),
         sessionSamplingRate: samplingRate,
+        exportProtocol: exportProtocol,
         debug: debug,
         traceAllHttpTraffic: traceAllHttpTraffic,
         trackingConsent: trackingConsent,

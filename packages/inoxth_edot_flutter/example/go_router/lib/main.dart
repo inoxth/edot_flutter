@@ -67,6 +67,9 @@ class _GoRouterExampleAppState extends State<GoRouterExampleApp> {
             onOpenDemo: (context, destination) async {
               await context.push<void>(destination.routeName);
             },
+            onOpenOrder: (context, orderId) async {
+              await context.push<void>('/orders/$orderId');
+            },
           ),
         ),
       ),
@@ -78,6 +81,16 @@ class _GoRouterExampleAppState extends State<GoRouterExampleApp> {
             child: demoScreenFor(destination),
           ),
         ),
+      // A path parameter. The page is named with the template ('/orders/:id'), not the
+      // resolved location, so every order shares one low-cardinality Screen Name - the
+      // exact case the comment above warns about.
+      GoRoute(
+        path: '/orders/:id',
+        pageBuilder: (context, state) => MaterialPage(
+          name: '/orders/:id',
+          child: OrderDetailScreen(orderId: state.pathParameters['id']!),
+        ),
+      ),
     ],
   );
 

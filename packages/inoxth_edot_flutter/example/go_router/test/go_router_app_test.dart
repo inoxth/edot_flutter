@@ -86,4 +86,21 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('a go_router path parameter collapses to one Screen Name', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.text('Demos'));
+    await tester.pumpAndSettle();
+
+    // go_router pushes /orders/1, but the page is named with the template '/orders/:id'
+    // so the Screen Name stays the low-cardinality 'Order detail'.
+    await tester.tap(find.text('Open order #1'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('order #1'), findsOneWidget);
+    expect(Edot.activeView?.name, 'Order detail');
+  });
 }
