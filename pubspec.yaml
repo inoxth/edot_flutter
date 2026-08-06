@@ -8,6 +8,7 @@ environment:
 workspace:
   - packages/inoxth_edot_flutter
   - packages/inoxth_edot_flutter/example/basic
+  - packages/inoxth_edot_flutter/example/go_router
   - packages/inoxth_edot_flutter/example/navigator
   - packages/inoxth_edot_flutter/example/shared
   - packages/inoxth_edot_flutter_dio
