@@ -38,6 +38,11 @@ Flutter/ephemeral/
 .symlinks/
 **/.symlinks/
 
+# SwiftPM lockfiles for the example apps re-resolve on every build (the plugin
+# depends on version ranges), so tracking them just churns pins across flavors.
+# Not worth pinning for unshipped demos - SwiftPM re-resolves them fine.
+packages/inoxth_edot_flutter/example/**/xcshareddata/swiftpm/Package.resolved
+
 # Seam 2 collector output
 tool/collector/output/
 
