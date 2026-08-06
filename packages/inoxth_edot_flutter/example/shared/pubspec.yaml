@@ -20,6 +20,13 @@ dependencies:
   # Map -> config transform; only `loadDemoConfig` touches the file system.
   flutter_dotenv: ^6.0.1
 
+  # The Network demo screen exercises all three traced request paths, so the shared
+  # package needs the companion interceptor and both HTTP clients.
+  inoxth_edot_flutter_dio:
+    path: ../../../inoxth_edot_flutter_dio
+  dio: ^5.4.0
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
