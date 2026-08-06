@@ -40,27 +40,6 @@ Future<void> main() async {
   }
 }
 
-/// Shown when `.env` carries no `EDOT_SERVER_URL`, so the Agent is never started.
-class MissingEnvApp extends StatelessWidget {
-  const MissingEnvApp({required this.reason, super.key});
-
-  final String reason;
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'EDOT Flutter example',
-    home: Scaffold(
-      appBar: AppBar(title: const Text('EDOT example — configuration needed')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(reason, textAlign: TextAlign.center),
-        ),
-      ),
-    ),
-  );
-}
-
 /// Wires the shared demo to Flutter's built-in `Navigator`.
 class ExampleApp extends StatelessWidget {
   const ExampleApp({required this.config, super.key});

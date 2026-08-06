@@ -1,0 +1,7 @@
+# Inherits the repo-wide strict config, like the other flavor apps.
+include: ../../../../analysis_options.yaml
+
+linter:
+  rules:
+    # A demo app, not a published library: its widgets are not an API anyone documents.
+    public_member_api_docs: false

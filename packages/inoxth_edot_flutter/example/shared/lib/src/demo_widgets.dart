@@ -2,6 +2,29 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+/// Shown when `.env` carries no `EDOT_SERVER_URL`, so the Agent is never started.
+///
+/// Every flavor app falls back to this when [loadDemoConfig] reports missing config.
+class MissingEnvApp extends StatelessWidget {
+  const MissingEnvApp({required this.reason, super.key});
+
+  final String reason;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'EDOT Flutter example',
+    home: Scaffold(
+      appBar: AppBar(title: const Text('EDOT example — configuration needed')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(reason, textAlign: TextAlign.center),
+        ),
+      ),
+    ),
+  );
+}
+
 /// A padded [ListView] the demo screens lay their cards out in.
 class DemoActionList extends StatelessWidget {
   const DemoActionList({required this.children, super.key});

@@ -1,0 +1,36 @@
+name: inoxth_edot_flutter_example_basic
+description: "The basic (no-navigation) flavor of the inoxth_edot_flutter example."
+publish_to: 'none'
+
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The plugin this example demonstrates - two directories up.
+  inoxth_edot_flutter:
+    path: ../../
+
+  # Shared demo code: the .env -> config loader and the action widgets.
+  inoxth_edot_flutter_example_shared:
+    path: ../shared
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # The .env this flavor reads its configuration from (see lib/main.dart).
+  # Bundled as an asset so flutter_dotenv can load it from the app bundle.
+  assets:
+    - .env
