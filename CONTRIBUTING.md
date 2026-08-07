@@ -84,6 +84,7 @@ dart run tool/verify_span_enrichment.dart -d <device>
 dart run tool/verify_span_parenting.dart -d <device>
 dart run tool/verify_screen_attribution.dart -d <device>
 dart run tool/verify_navigation.dart -d <device>
+dart run tool/verify_inpage_view.dart -d <device>
 dart run tool/verify_network.dart -d <device>
 dart run tool/verify_trace_context.dart -d <device>
 dart run tool/verify_collector_host_exclusion.dart -d <ios-device>  # iOS only
