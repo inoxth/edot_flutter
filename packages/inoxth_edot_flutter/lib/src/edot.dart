@@ -16,6 +16,7 @@ import 'edot_config.dart';
 import 'edot_signals.dart';
 import 'edot_tracing_rules.dart';
 import 'edot_tracer.dart';
+import 'edot_view_claims.dart';
 
 /// Entry point to the Plugin.
 ///
@@ -376,6 +377,7 @@ abstract final class Edot {
     emission.resetEmissionGate();
     debugLoggingEnabled = false;
     active_view.clearActiveView();
+    clearViewClaims();
     clearTracingRules();
     uninstallHttpOverrides();
     uninstallErrorHandlers();

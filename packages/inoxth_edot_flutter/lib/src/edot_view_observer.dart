@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import 'edot.dart';
+import 'edot_view_claims.dart';
 
 /// Records in-page view switches automatically, the way [EdotNavigatorObserver]
 /// records route navigations.
@@ -132,11 +133,30 @@ class _EdotViewObserverState extends State<EdotViewObserver> {
   /// The index last entered, so a notification that does not change it is ignored.
   int? _lastIndex;
 
+  /// The route this observer owns the Active View for, once known.
+  ///
+  /// Claiming it lets the route observer defer to [_reassert] when the route
+  /// returns to the front, instead of entering the container's own name.
+  ModalRoute<dynamic>? _claimedRoute;
+
   @override
   void initState() {
     super.initState();
     widget._listenable.addListener(_syncView);
     _syncView();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Resolved here, not in initState: the enclosing route is an inherited lookup,
+    // which is not available until dependencies are ready.
+    final route = ModalRoute.of(context);
+    if (identical(route, _claimedRoute)) return;
+
+    if (_claimedRoute != null) releaseViewRoute(_claimedRoute!);
+    _claimedRoute = route;
+    if (route != null) claimViewRoute(route, _reassert);
   }
 
   @override
@@ -153,17 +173,30 @@ class _EdotViewObserverState extends State<EdotViewObserver> {
 
   @override
   void dispose() {
+    if (_claimedRoute != null) releaseViewRoute(_claimedRoute!);
     widget._listenable.removeListener(_syncView);
     super.dispose();
   }
 
+  /// Enters [index] unconditionally, moving the Active View and emitting a span.
+  void _enter(int index) {
+    _lastIndex = index;
+    Edot.enterView(widget._nameFor(index));
+  }
+
+  /// Enters the current view only when it actually changed - the listener path,
+  /// where a rebuild or a no-op notification must not spam a duplicate span.
   void _syncView() {
     final index = widget._currentIndex();
     if (index == _lastIndex) return;
 
-    _lastIndex = index;
-    Edot.enterView(widget._nameFor(index));
+    _enter(index);
   }
+
+  /// Re-enters the current view even though the index did not change. Called when
+  /// the host route returns to the front and the route observer defers to this
+  /// observer, so the Active View lands back on the tab the user was on.
+  void _reassert() => _enter(widget._currentIndex());
 
   @override
   Widget build(BuildContext context) => widget.child;

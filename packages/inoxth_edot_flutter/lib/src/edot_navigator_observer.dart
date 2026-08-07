@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'edot.dart';
 import 'edot_channel.dart';
 import 'edot_screen_name.dart';
+import 'edot_view_claims.dart';
 
 /// Emits a Screen Span per navigation and keeps the Active View current.
 ///
@@ -76,6 +77,16 @@ class EdotNavigatorObserver extends NavigatorObserver {
     if (identical(topRoute, _current)) return;
 
     _current = topRoute;
+
+    // An in-page observer that lives on this route owns its Active View. Defer to it
+    // — re-assert the view the user was on — rather than entering the container's own
+    // name, so popping back onto a tabbed host lands on the tab and emits one Screen
+    // Span, not a container span plus a tab span.
+    final reassert = viewClaimFor(topRoute);
+    if (reassert != null) {
+      reassert();
+      return;
+    }
 
     // The shared "enter a view" primitive, so a route navigation and an in-page switch
     // produce an identical Screen Span through one path. It owns the span lifecycle —
