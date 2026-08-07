@@ -19,6 +19,15 @@ void main() {
     serverUrl: 'http://localhost:4318',
   );
 
+  final calls = <MethodCall>[];
+
+  /// Names of the Screen Spans emitted so far. Empty unless the Agent was started,
+  /// since telemetry is otherwise held rather than sent (ADR-0005).
+  List<Object?> viewSpanNames() => calls
+      .where((c) => c.method == 'spanStart')
+      .map((c) => (c.arguments as Map<Object?, Object?>)['name'])
+      .toList();
+
   Future<void> pumpApp(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -29,11 +38,14 @@ void main() {
   }
 
   setUp(() {
+    calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel(edotChannelName),
-          (call) async => null,
-        );
+        .setMockMethodCallHandler(const MethodChannel(edotChannelName), (
+          call,
+        ) async {
+          calls.add(call);
+          return null;
+        });
   });
 
   tearDown(() {
@@ -102,5 +114,43 @@ void main() {
 
     expect(find.textContaining('order #1'), findsOneWidget);
     expect(Edot.activeView?.name, 'Order detail');
+  });
+
+  group('automatic in-page tracking', () {
+    // Started, unlike the rest of the file, so the channel actually sees the Screen
+    // Span a tab switch produces (held before start otherwise, ADR-0005). Proves the
+    // shared shell behaves identically to the navigator flavor under go_router.
+    testWidgets('switching a tab emits a view span and moves the view', (
+      tester,
+    ) async {
+      await Edot.start(config);
+      await pumpApp(tester);
+      calls.clear();
+
+      await tester.tap(find.text('Demos'));
+      await tester.pumpAndSettle();
+
+      expect(viewSpanNames(), contains('Demos - view appearing'));
+      expect(Edot.activeView?.name, 'Demos');
+    });
+
+    testWidgets('returning from a demo lands back on the tab, one span', (
+      tester,
+    ) async {
+      await Edot.start(config);
+      await pumpApp(tester);
+
+      await tester.tap(find.text('Demos'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Network'));
+      await tester.pumpAndSettle();
+
+      calls.clear();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      expect(viewSpanNames(), ['Demos - view appearing']);
+      expect(Edot.activeView?.name, 'Demos');
+    });
   });
 }

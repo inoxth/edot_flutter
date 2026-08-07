@@ -7,9 +7,11 @@ import 'demo_widgets.dart';
 /// The shared app shell: Home / Demos / Settings bottom tabs.
 ///
 /// Both flavor apps mount this at their root route. The tabs switch in place - a tab
-/// switch pushes no route, so the shell sets the Active View itself. Opening
-/// a demo, by contrast, goes through [onOpenDemo] so the flavor's own router pushes a
-/// real route the `EdotNavigatorObserver` turns into a Screen Span.
+/// switch pushes no route - so an [EdotViewObserver] watches the tab index and turns
+/// each switch into a Screen Span automatically, with no per-switch code. It also owns
+/// the Active View for the root route: after opening a demo (via [onOpenDemo], a real
+/// pushed route) and popping back, the observer re-asserts the tab the user was on, so
+/// the shell no longer re-asserts it by hand.
 class DemoHome extends StatefulWidget {
   const DemoHome({
     required this.config,
@@ -32,47 +34,49 @@ class DemoHome extends StatefulWidget {
 
 class _DemoHomeState extends State<DemoHome> {
   static const _tabs = ['Home', 'Demos', 'Settings'];
-  int _tab = 0;
+
+  /// The selected tab, driven by the bottom bar and watched by the observer, so a
+  /// switch moves the Active View and emits a Screen Span with no per-tab code.
+  final ValueNotifier<int> _tab = ValueNotifier<int>(0);
 
   @override
-  void initState() {
-    super.initState();
-    Edot.setActiveView(_tabs[_tab]);
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
   }
 
-  void _selectTab(int index) {
-    Edot.setActiveView(_tabs[index]);
-    setState(() => _tab = index);
-  }
+  Future<void> _openDemo(DemoDestination destination) =>
+      widget.onOpenDemo(context, destination);
 
-  Future<void> _openDemo(DemoDestination destination) async {
-    await widget.onOpenDemo(context, destination);
-    // The observer set the Active View back to the root route ('Home') as the demo
-    // popped; re-assert the tab the user is actually looking at.
-    if (mounted) Edot.setActiveView(_tabs[_tab]);
-  }
-
-  Future<void> _openOrder(String orderId) async {
-    await widget.onOpenOrder(context, orderId);
-    if (mounted) Edot.setActiveView(_tabs[_tab]);
-  }
+  Future<void> _openOrder(String orderId) =>
+      widget.onOpenOrder(context, orderId);
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text('EDOT example — ${_tabs[_tab]}')),
-    body: switch (_tab) {
-      0 => const _HomeTab(),
-      1 => _DemosTab(onOpen: _openDemo, onOpenOrder: _openOrder),
-      _ => _SettingsTab(config: widget.config),
-    },
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: _tab,
-      onDestinationSelected: _selectTab,
-      destinations: const [
-        NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-        NavigationDestination(icon: Icon(Icons.widgets), label: 'Demos'),
-        NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
-      ],
+  Widget build(BuildContext context) => EdotViewObserver.index(
+    listenable: _tab,
+    names: _tabs,
+    child: ValueListenableBuilder<int>(
+      valueListenable: _tab,
+      builder: (context, tab, _) => Scaffold(
+        appBar: AppBar(title: Text('EDOT example — ${_tabs[tab]}')),
+        body: switch (tab) {
+          0 => const _HomeTab(),
+          1 => _DemosTab(onOpen: _openDemo, onOpenOrder: _openOrder),
+          _ => _SettingsTab(config: widget.config),
+        },
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: tab,
+          onDestinationSelected: (index) => _tab.value = index,
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+            NavigationDestination(icon: Icon(Icons.widgets), label: 'Demos'),
+            NavigationDestination(
+              icon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }

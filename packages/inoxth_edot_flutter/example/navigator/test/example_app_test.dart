@@ -24,6 +24,15 @@ void main() {
     serverUrl: 'http://localhost:4318',
   );
 
+  final calls = <MethodCall>[];
+
+  /// Names of the Screen Spans emitted so far. Empty unless the Agent was started,
+  /// since telemetry is otherwise held rather than sent (ADR-0005).
+  List<Object?> viewSpanNames() => calls
+      .where((c) => c.method == 'spanStart')
+      .map((c) => (c.arguments as Map<Object?, Object?>)['name'])
+      .toList();
+
   /// Pumps the app on a surface tall enough for every action to be built.
   ///
   /// The lists are lazy, so on a phone-sized surface the last card in each is never built
@@ -39,11 +48,14 @@ void main() {
   }
 
   setUp(() {
+    calls.clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-          const MethodChannel(edotChannelName),
-          (call) async => null,
-        );
+        .setMockMethodCallHandler(const MethodChannel(edotChannelName), (
+          call,
+        ) async {
+          calls.add(call);
+          return null;
+        });
   });
 
   tearDown(() {
@@ -176,5 +188,44 @@ void main() {
     // The build failure is the point, so it is consumed rather than left to fail the test.
     expect(tester.takeException(), isStateError);
     expect(find.textContaining('This subtree failed to build'), findsOneWidget);
+  });
+
+  group('automatic in-page tracking', () {
+    // These start the Agent, unlike the rest of the file: a Screen Span is held rather
+    // than sent before start, so the channel only sees one once the Agent is running.
+    testWidgets('switching a tab emits a view span and moves the view', (
+      tester,
+    ) async {
+      await Edot.start(config);
+      await pumpApp(tester);
+      calls.clear();
+
+      await tester.tap(find.text('Demos'));
+      await tester.pumpAndSettle();
+
+      expect(viewSpanNames(), contains('Demos - view appearing'));
+      expect(Edot.activeView?.name, 'Demos');
+    });
+
+    testWidgets('returning from a demo lands back on the tab, one span', (
+      tester,
+    ) async {
+      await Edot.start(config);
+      await pumpApp(tester);
+
+      await tester.tap(find.text('Demos'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Network'));
+      await tester.pumpAndSettle();
+
+      calls.clear();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // The route observer defers the claimed root route to the shell's EdotViewObserver,
+      // so the pop re-asserts the Demos tab with exactly one span, not a container span.
+      expect(viewSpanNames(), ['Demos - view appearing']);
+      expect(Edot.activeView?.name, 'Demos');
+    });
   });
 }
