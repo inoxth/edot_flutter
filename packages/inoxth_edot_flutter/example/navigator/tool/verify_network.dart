@@ -14,7 +14,7 @@ final _failures = <String>[];
 
 Future<void> main(List<String> args) async {
   final collector = CollectorProcess(
-    composeDirectory: Directory('../../../tool/collector'),
+    composeDirectory: Directory('../../../../tool/collector'),
     outputDirectory: Directory.systemTemp.createTempSync('edot-collector-'),
   );
 

@@ -33,7 +33,7 @@ Future<void> main(List<String> args) async {
   // output goes to a temp directory so a run cannot inherit a previous run's
   // spans through a checked-in path.
   final collector = CollectorProcess(
-    composeDirectory: Directory('../../../tool/collector'),
+    composeDirectory: Directory('../../../../tool/collector'),
     outputDirectory: Directory.systemTemp.createTempSync('edot-collector-'),
   );
 
