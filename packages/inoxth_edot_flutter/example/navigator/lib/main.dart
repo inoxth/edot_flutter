@@ -18,16 +18,16 @@ Future<void> main() async {
 
   // Built from `.env` at the edge; the mapping and the missing-config guard are proven in
   // the shared package's Seam 1 tests. Telemetry produced before `Edot.start` is held and
-  // replayed rather than lost (ADR-0005), so starting once config is known loses nothing.
+  // replayed rather than lost, so starting once config is known loses nothing.
   final result = await loadDemoConfig(
     debug: true,
 
     // Traces every request the app makes over dart:io, including ones inside
-    // dependencies. Requests to the collector's own host are never traced (ADR-0006).
+    // dependencies. Requests to the collector's own host are never traced.
     traceAllHttpTraffic: true,
 
     // Starts granted, the Plugin default and a Fleet Alignment choice; the Settings tab
-    // lets you switch it and watch the gate take effect (ADR-0015).
+    // lets you switch it and watch the gate take effect.
     trackingConsent: EdotTrackingConsent.granted,
   );
 

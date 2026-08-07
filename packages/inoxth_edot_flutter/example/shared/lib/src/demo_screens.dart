@@ -76,8 +76,8 @@ class NetworkScreen extends StatelessWidget {
     children: [
       const DemoNote(
         'This app enables traceAllHttpTraffic, so all three produce exactly one span '
-        'each - a request is never traced twice (ADR-0014). One request also produces '
-        'a synthetic parent span on iOS, so counts differ by platform (ADR-0001).',
+        'each - a request is never traced twice. One request also produces '
+        'a synthetic parent span on iOS, so counts differ by platform.',
       ),
       DemoActionTile(
         'EdotHttpClient',
@@ -86,7 +86,7 @@ class NetworkScreen extends StatelessWidget {
       ),
       DemoActionTile(
         'Dio interceptor',
-        'From the companion package, which ships separately (ADR-0010).',
+        'From the companion package, which ships separately.',
         _viaDio,
       ),
       DemoActionTile(
@@ -157,7 +157,7 @@ class MetricsScreen extends StatelessWidget {
     title: 'Metrics',
     children: [
       const DemoNote(
-        'Attributes are String-valued only - a limit of the pinned iOS meter (ADR-0012).',
+        'Attributes are String-valued only - a limit of the pinned iOS meter.',
       ),
       DemoActionTile('Counter', 'A value that only ever increases.', () {
         Edot.recordMetric(
@@ -260,8 +260,8 @@ class _ErrorsScreenState extends State<ErrorsScreen> {
     children: [
       const DemoNote(
         'All of these are non-fatal log records with error.source naming their origin. '
-        'None counts towards crash-free rate, which reflects native crashes only '
-        '(ADR-0008) - and Android captures none of those at all (ADR-0009).',
+        'None counts towards crash-free rate, which reflects native crashes only, '
+        'and Android captures none of those at all.',
       ),
       DemoActionTile(
         'Uncaught async error',

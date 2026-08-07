@@ -20,7 +20,7 @@ Future<void> main() async {
   final result = await loadDemoConfig(
     debug: true,
     traceAllHttpTraffic: true,
-    // Starts granted, the Plugin default; the Settings tab lets you switch it (ADR-0015).
+    // Starts granted, the Plugin default; the Settings tab lets you switch it.
     trackingConsent: EdotTrackingConsent.granted,
   );
 

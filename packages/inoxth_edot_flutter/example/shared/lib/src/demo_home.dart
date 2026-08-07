@@ -7,7 +7,7 @@ import 'demo_widgets.dart';
 /// The shared app shell: Home / Demos / Settings bottom tabs.
 ///
 /// Both flavor apps mount this at their root route. The tabs switch in place - a tab
-/// switch pushes no route (ADR-0004), so the shell sets the Active View itself. Opening
+/// switch pushes no route, so the shell sets the Active View itself. Opening
 /// a demo, by contrast, goes through [onOpenDemo] so the flavor's own router pushes a
 /// real route the `EdotNavigatorObserver` turns into a Screen Span.
 class DemoHome extends StatefulWidget {
@@ -91,7 +91,7 @@ class _HomeTabState extends State<_HomeTab> {
     final id = await Edot.currentSessionId();
     setState(() {
       // Empty on Android, always: its Agent exposes the session manager only as internal
-      // API (ADR-0001). A support screen has to handle that rather than display it.
+      // API. A support screen has to handle that rather than display it.
       _sessionId = id.isEmpty
           ? 'empty — expected on Android, and before start'
           : id;
@@ -109,7 +109,7 @@ class _HomeTabState extends State<_HomeTab> {
       DemoActionTile('Read Session identifier', _sessionId, _readSessionId),
       DemoActionTile(
         'Flush',
-        "Drains the Plugin's buffers. Does NOT promise delivery (ADR-0011).",
+        "Drains the Plugin's buffers. Does NOT promise delivery.",
         () async {
           await Edot.flush();
           demoLog.add('Flushed the Plugin buffers');
@@ -135,7 +135,7 @@ class _DemosTab extends StatelessWidget {
     children: [
       const DemoNote(
         'Each demo is a real pushed route, so opening one produces a Screen Span and '
-        'moves the Active View to that screen (ADR-0004). Go back and the Active View '
+        'moves the Active View to that screen. Go back and the Active View '
         'returns to this tab.',
       ),
       for (final destination in DemoDestination.values)
@@ -208,7 +208,7 @@ class _SettingsTabState extends State<_SettingsTab> {
         const DemoNote(
           'Tracking Consent takes effect on the very next emission, in either direction, '
           'with no restart. Telemetry produced while consent is withheld is discarded '
-          'rather than held - granting later does not release it (ADR-0015).',
+          'rather than held - granting later does not release it.',
         ),
         RadioGroup<EdotTrackingConsent>(
           groupValue: Edot.trackingConsent,

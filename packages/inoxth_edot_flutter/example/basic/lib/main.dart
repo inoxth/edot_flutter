@@ -49,7 +49,7 @@ class _BasicHomeState extends State<_BasicHome> {
   Future<void> _readSessionId() async {
     final id = await Edot.currentSessionId();
     setState(() {
-      // Empty on Android by design (ADR-0001); a real app handles that rather than show it.
+      // Empty on Android by design; a real app handles that rather than show it.
       _sessionId = id.isEmpty
           ? 'empty — expected on Android, and before start'
           : id;
@@ -96,7 +96,7 @@ class _BasicHomeState extends State<_BasicHome> {
       }),
       DemoActionTile(
         'Report an error',
-        'A non-fatal Dart Error the app handled but wants to know about (ADR-0008).',
+        'A non-fatal Dart Error the app handled but wants to know about.',
         () => Edot.reportError(
           StateError('a handled failure'),
           stackTrace: StackTrace.current,
