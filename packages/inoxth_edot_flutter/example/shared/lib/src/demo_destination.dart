@@ -29,6 +29,11 @@ enum DemoDestination {
     'Interaction',
     Icons.touch_app,
     'A user action, modelled as a manual span.',
+  ),
+  inPageViews(
+    'In-page views',
+    Icons.tab,
+    'Tabs tracked automatically by EdotViewObserver.',
   );
 
   const DemoDestination(this.title, this.icon, this.summary);
@@ -49,6 +54,7 @@ Widget demoScreenFor(DemoDestination destination) => switch (destination) {
   DemoDestination.logs => const LogsScreen(),
   DemoDestination.errors => const ErrorsScreen(),
   DemoDestination.interaction => const InteractionScreen(),
+  DemoDestination.inPageViews => const InPageViewsScreen(),
 };
 
 /// Maps a route name to the low-cardinality Screen Name the observer should use.

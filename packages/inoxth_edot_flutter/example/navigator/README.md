@@ -2,7 +2,8 @@
 
 The reference flavor: a multi-screen app routed with Flutter's built-in `Navigator` (named
 routes). Home / Demos / Settings tabs, with a screen per telemetry area - network, tracing,
-metrics, logs, errors, and interaction - reached through `EdotNavigatorObserver` on
+metrics, logs, errors, interaction, and an in-page views screen - reached through
+`EdotNavigatorObserver` on
 `MaterialApp.navigatorObservers`, so each push produces a Screen Span and moves the Active View.
 Between its screens it exercises every feature: manual spans, logs at every severity, all three
 metric kinds, all three network paths (plus a failed and a batched-sequential request), error

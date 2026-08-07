@@ -8,7 +8,7 @@ Pick the one whose navigation matches your app - they share the same demo screen
 | Flavor | Navigation | What to copy from it |
 |---|---|---|
 | [`basic`](basic) | None - one screen | The smallest integration: start the Agent from `.env`, then emit a span, a metric, a log, a reported error, and read the Session identifier. No navigation, no network. |
-| [`navigator`](navigator) | Flutter `Navigator` (named routes) | The reference flavor. Home / Demos / Settings, a screen per telemetry area (logs at every severity, all three network paths, an interaction span, more), a parametric route that normalizes its Screen Name, and `EdotNavigatorObserver` on `MaterialApp.navigatorObservers`. Also hosts the Seam 2 tests. |
+| [`navigator`](navigator) | Flutter `Navigator` (named routes) | The reference flavor. Home / Demos / Settings, a screen per telemetry area (logs at every severity, all three network paths, an interaction span, an in-page views screen tracked by `EdotViewObserver`, more), a parametric route that normalizes its Screen Name, and `EdotNavigatorObserver` on `MaterialApp.navigatorObservers`. Also hosts the Seam 2 tests. |
 | [`go_router`](go_router) | [`go_router`](https://pub.dev/packages/go_router) | The same demo routed with `go_router` - `EdotNavigatorObserver` via `GoRouter.observers`, `context.push` to open a screen. |
 
 `shared` is not a flavor: it holds the demo screens and primitives the three apps reuse, which is

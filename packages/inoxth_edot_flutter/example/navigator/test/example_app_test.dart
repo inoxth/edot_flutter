@@ -227,5 +227,26 @@ void main() {
       expect(viewSpanNames(), ['Demos - view appearing']);
       expect(Edot.activeView?.name, 'Demos');
     });
+
+    testWidgets('the in-page views demo tracks its own tab switches', (
+      tester,
+    ) async {
+      await Edot.start(config);
+      await pumpApp(tester);
+
+      await tester.tap(find.text('Demos'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('In-page views'));
+      await tester.pumpAndSettle();
+
+      calls.clear();
+      await tester.tap(find.text('Details'));
+      await tester.pumpAndSettle();
+
+      // The tab pushes no route, yet the wrapped EdotViewObserver.tabs turns the switch
+      // into a Screen Span and moves the Active View to the sub-view.
+      expect(viewSpanNames(), contains('Details - view appearing'));
+      expect(Edot.activeView?.name, 'Details');
+    });
   });
 }

@@ -387,3 +387,82 @@ class OrderDetailScreen extends StatelessWidget {
     ],
   );
 }
+
+/// Automatic in-page view tracking, the tab case.
+///
+/// These tabs push no route, so `EdotNavigatorObserver` never sees them. Wrapping the
+/// tabbed subtree in [EdotViewObserver] turns each switch into the same Screen Span a
+/// route navigation produces, with no per-switch code - the recipe an integrator with a
+/// `TabController` copies. The app shell tracks its own bottom tabs the same way, via
+/// the `.index` constructor.
+class InPageViewsScreen extends StatefulWidget {
+  const InPageViewsScreen({super.key});
+
+  @override
+  State<InPageViewsScreen> createState() => _InPageViewsScreenState();
+}
+
+class _InPageViewsScreenState extends State<InPageViewsScreen>
+    with SingleTickerProviderStateMixin {
+  static const _views = ['Overview', 'Details', 'Activity'];
+
+  late final TabController _controller = TabController(
+    length: _views.length,
+    vsync: this,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => DemoScreen(
+    title: 'In-page views',
+    children: [
+      const DemoNote(
+        'These tabs push no route, so navigation tracing never sees them. '
+        'EdotViewObserver.tabs watches the TabController and emits a '
+        '"<name> - view appearing" Screen Span on every switch - tap or swipe - just '
+        'like a route navigation, with no per-switch code.',
+      ),
+      EdotViewObserver.tabs(
+        controller: _controller,
+        names: _views,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TabBar(
+              controller: _controller,
+              tabs: [for (final view in _views) Tab(text: view)],
+            ),
+            SizedBox(
+              height: 140,
+              child: TabBarView(
+                controller: _controller,
+                children: [
+                  for (final view in _views)
+                    Center(child: Text('The $view view')),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      // Reads the real Active View the observer set, so switching a tab visibly moves it.
+      AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) => DemoNote(
+          'Active View is now "${Edot.activeView?.name}". Every signal you emit next '
+          'carries it, so a tab is attributed like a screen.',
+        ),
+      ),
+      const DemoNote(
+        'A PageView uses EdotViewObserver.pages, and an index-driven NavigationBar or '
+        'IndexedStack uses .index - the same recipe, hooked to the mechanism you drive.',
+      ),
+    ],
+  );
+}
