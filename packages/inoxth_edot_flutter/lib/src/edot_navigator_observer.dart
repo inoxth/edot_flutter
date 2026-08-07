@@ -1,10 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'edot.dart';
-import 'edot_active_view.dart';
 import 'edot_channel.dart';
 import 'edot_screen_name.dart';
-import 'edot_tracer.dart';
 
 /// Emits a Screen Span per navigation and keeps the Active View current.
 ///
@@ -57,9 +55,6 @@ class EdotNavigatorObserver extends NavigatorObserver {
   /// replaced on every navigation.
   Route<dynamic>? _current;
 
-  /// The Screen Span still waiting for its frame, if any.
-  EdotSpan? _pending;
-
   /// Every navigation, whatever produced it.
   ///
   /// The framework's own answer to "what is the user looking at now", which is why this is
@@ -80,55 +75,13 @@ class EdotNavigatorObserver extends NavigatorObserver {
     // counts and mint a new Active View identifier, splitting one entry's telemetry.
     if (identical(topRoute, _current)) return;
 
-    _enter(topRoute);
-  }
+    _current = topRoute;
 
-  void _enter(Route<dynamic> route) {
-    final name = _screenNameFor(route);
-
-    // The Active View rather than the last route this observer saw. A tab switch sets the
-    // Active View without a route changing (ADR-0004), and remembering only routes would
-    // report the screen before the tab as the one the user came from — naming a screen they
-    // left two changes ago.
-    final from = activeView?.name;
-
-    // Whatever it was measuring is over: the user has left. Ending it here rather than
-    // leaving it to a post-frame callback that will now decline to fire keeps a transition
-    // interrupted by a faster one from staying open for the rest of the app's life.
-    _endPending();
-
-    _current = route;
-
-    // Before the span starts, so the span carries the Active View it establishes — the
-    // same `screen.id` every later span on this screen will, which is what lets a
-    // dashboard join a screen's telemetry to the transition that opened it.
-    setActiveView(name);
-
-    final span = Edot.tracer.startSpan(
-      '$name - view appearing',
-      attributes: <String, String>{
-        // Fleet Alignment: the React Native SDK sets this on its own Screen Spans. Omitted
-        // when the screen has not changed, because naming the screen the user is already
-        // on answers nothing.
-        if (from != null && from != name) 'last.screen.name': from,
-      },
-    );
-    _pending = span;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Only if it is still the transition in flight. A navigation that overtook this one
-      // has already ended it, and ending the span that replaced it would report the wrong
-      // duration for the wrong screen.
-      if (!identical(_pending, span)) return;
-
-      span.end();
-      _pending = null;
-    });
-  }
-
-  void _endPending() {
-    _pending?.end();
-    _pending = null;
+    // The shared "enter a view" primitive, so a route navigation and an in-page switch
+    // produce an identical Screen Span through one path. It owns the span lifecycle —
+    // the `last.screen.name`, the post-frame end and the overtaking case — leaving this
+    // observer to answer only which route became visible and what to name it.
+    Edot.enterView(_screenNameFor(topRoute));
   }
 
   String _screenNameFor(Route<dynamic> route) {

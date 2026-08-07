@@ -1,6 +1,6 @@
 import 'dart:isolate';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'edot_active_view.dart' as active_view;
 import 'edot_channel.dart';
@@ -27,6 +27,12 @@ import 'edot_tracer.dart';
 abstract final class Edot {
   static EdotTracer? _tracer;
   static bool _started = false;
+
+  /// The Screen Span still waiting for its frame, if any.
+  ///
+  /// Global rather than per-observer, so a route navigation and an in-page switch
+  /// share one in-flight transition and cannot leave two competing spans open.
+  static EdotSpan? _pendingViewSpan;
 
   /// Whether [start] has completed.
   ///
@@ -134,6 +140,67 @@ abstract final class Edot {
   /// Each call is a fresh entry and gets its own identifier, including a repeat
   /// entry to a screen already named. Throws [ArgumentError] on a blank name.
   static void setActiveView(String name) => active_view.setActiveView(name);
+
+  /// Enters a view: moves the Active View to [name] and emits its Screen Span.
+  ///
+  /// What a navigation does, made callable directly. It sets the Active View — so
+  /// every span and log that follows is attributed to the new screen — and starts a
+  /// `"<name> - view appearing"` Screen Span that ends on the next frame, measuring
+  /// what the user waited for. The span carries `last.screen.name` when the view
+  /// actually changed, so a dashboard answers "where did the user come from" for an
+  /// in-page switch exactly as it does for a route (ADR-0004).
+  ///
+  /// Use it for a view change that pushes no route and so cannot be observed — a
+  /// bottom navigation bar, a `PageView`, an `IndexedStack`. [EdotNavigatorObserver]
+  /// is built on this, so a route navigation and an in-page switch produce an
+  /// identical Screen Span through one path. For attribution without a transition —
+  /// re-tagging telemetry without measuring a switch — use [setActiveView] instead.
+  ///
+  /// Each call is a fresh entry with its own identifier, including a repeat entry to
+  /// a screen already named, because two entries can legitimately share a Screen
+  /// Name (`/orders/1` and `/orders/2`). De-duplicating no-op switches is therefore
+  /// the caller's job — the observer does it by route, an in-page observer by index.
+  /// Throws [ArgumentError] on a blank name.
+  ///
+  /// A faster switch that overtakes this one before its frame ends this span rather
+  /// than leaving it open. Usable before [start]: the span is held and replayed
+  /// (ADR-0005).
+  static void enterView(String name) {
+    // The Active View rather than the last route seen: an in-page switch moves the
+    // view with no route changing, so reading routes would name a screen the user
+    // left two changes ago.
+    final from = active_view.activeView?.name;
+
+    // Before the span starts, so it carries the same `screen.id` every later span on
+    // this screen will — what lets a dashboard join a screen's telemetry to the
+    // transition that opened it. Throws on a blank name before anything else happens,
+    // leaving any in-flight transition untouched.
+    active_view.setActiveView(name);
+
+    // Whatever the previous transition was measuring is over: the user has left.
+    _pendingViewSpan?.end();
+
+    final span = tracer.startSpan(
+      '$name - view appearing',
+      attributes: <String, String>{
+        // Fleet Alignment: the React Native SDK sets this on its own Screen Spans.
+        // Omitted when the screen has not changed — naming the screen the user is
+        // already on answers nothing.
+        if (from != null && from != name) 'last.screen.name': from,
+      },
+    );
+    _pendingViewSpan = span;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Only if it is still the transition in flight. A switch that overtook this one
+      // has already ended it, and ending the span that replaced it would report the
+      // wrong duration for the wrong screen.
+      if (!identical(_pendingViewSpan, span)) return;
+
+      span.end();
+      _pendingViewSpan = null;
+    });
+  }
 
   /// Forgets the Active View, for leaving all screens.
   ///
@@ -305,6 +372,7 @@ abstract final class Edot {
   static void resetForTesting() {
     _tracer = null;
     _started = false;
+    _pendingViewSpan = null;
     emission.resetEmissionGate();
     debugLoggingEnabled = false;
     active_view.clearActiveView();
