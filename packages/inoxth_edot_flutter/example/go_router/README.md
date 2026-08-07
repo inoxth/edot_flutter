@@ -6,6 +6,12 @@ instead of Flutter's built-in `Navigator`. Every screen comes from the shared pa
 whose `observers` include the same `EdotNavigatorObserver`, and `context.push` to open a
 demo.
 
+Because the screens are shared, it demonstrates the same two-part screen tracking: navigation
+Screen Spans through `EdotNavigatorObserver` in the router's `observers`, and automatic in-page
+view tracking through `EdotViewObserver` in the shared shell - the Home / Demos / Settings bottom
+tabs and the In-page views screen - with no go_router-specific code. Returning from a pushed demo
+lands the Active View back on the tab you were on, exactly as in the navigator flavor.
+
 ## Run
 
 ```bash
