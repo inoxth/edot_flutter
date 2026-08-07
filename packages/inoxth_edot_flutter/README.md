@@ -157,6 +157,12 @@ no manual re-assert.
 Flutter exposes no global in-page navigation event, so tracking is wired once to your own
 controller or index rather than detected for you.
 
+For a custom or imperative switcher no observer covers, call `Edot.enterView(name)` yourself - it
+does exactly what the observer does on each switch (moves the Active View and emits the Screen
+Span). It emits on every call and never de-duplicates, because two entries may legitimately share a
+name; so de-duplicate no-op switches - a rebuild, or re-entering the view already showing - before
+calling it. The observers above already do this for you.
+
 If what you want is attribution without a transition - re-tagging telemetry without emitting a
 Screen Span - call `Edot.setActiveView(name)` directly instead.
 
