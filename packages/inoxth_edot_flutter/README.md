@@ -78,7 +78,10 @@ Never hardcode the URL or credential. Read them from `--dart-define` or your own
 Navigation tracing produces a **Screen Span** per transition - ending when the destination's
 first frame renders - and sets the **Active View**, so every later signal carries the screen it
 came from. Screen names are derived from the route, with variable segments collapsed so
-`/orders/9f8e7d6c` and `/orders/12345` do not become thousands of distinct screens.
+`/orders/9f8e7d6c` and `/orders/12345` do not become thousands of distinct screens. In-page view
+switches - tabs, a `PageView`, an `IndexedStack` - produce the same Screen Span through
+`EdotViewObserver`, covered under [Tabs and other in-page switches](#tabs-and-other-in-page-switches)
+below.
 
 #### Flutter's Navigator (the default)
 
@@ -130,19 +133,32 @@ way. The `screenNameExtractor` hook shown above is the general escape hatch: it 
 `Route` and takes whatever name you return, so you can map any router's own route identifiers to
 the screen names you want. It is the integration point, rather than a per-router adapter.
 
-#### Tabs and other non-route switches
+#### Tabs and other in-page switches
 
-A bottom navigation bar, tabs, or an `IndexedStack` change what is on screen without pushing a
-route, so a `NavigatorObserver` never sees them. Tell the Plugin yourself:
+A bottom navigation bar, tabs, a `PageView` or an `IndexedStack` change what is on screen without
+pushing a route, so a `NavigatorObserver` never sees them. Wrap the tabbed subtree in an
+`EdotViewObserver` and each switch produces the same Screen Span a navigation does - automatically,
+with no per-switch code. It hooks whichever mechanism you already drive the UI from:
 
 ```dart
-onTabSelected: (index) {
-  Edot.setActiveView(_tabNames[index]);
-  setState(() => _index = index);
-}
+EdotViewObserver.tabs(
+  controller: _tabController,
+  names: const ['Feed', 'Search', 'Profile'],
+  child: TabBarView(controller: _tabController, children: [...]),
+)
 ```
 
-These get no Screen Span - there is no transition to measure - only a new Active View.
+Use `.pages` for a `PageController`, or `.index` for a `ValueListenable<int>` behind a
+`NavigationBar`. Supply the screen names as a list, or as a `nameFor` mapper for a set built at
+runtime. The observer also owns the Active View for the route it lives on, so after opening a
+screen from a tabbed host and popping back, the Active View returns to the tab you were on - with
+no manual re-assert.
+
+Flutter exposes no global in-page navigation event, so tracking is wired once to your own
+controller or index rather than detected for you.
+
+If what you want is attribution without a transition - re-tagging telemetry without emitting a
+Screen Span - call `Edot.setActiveView(name)` directly instead.
 
 ### 4. Trace network requests
 

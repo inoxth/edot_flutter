@@ -37,6 +37,10 @@ _Avoid_: navigation span, route span, view span, dwell span
 The low-cardinality label for an Active View, with variable path segments collapsed.
 _Avoid_: route path, screen title, URL
 
+**In-Page View Switch**:
+A change of the visible view that pushes no route - switching a tab, paging a `PageView`, changing the index of an `IndexedStack`. It moves the Active View and emits a Screen Span the same way a route navigation does, so a view change is tracked identically whether or not a route changed.
+_Avoid_: tab change, page swipe, non-route navigation
+
 ### Instrumentation
 
 **Traced Marker**:
