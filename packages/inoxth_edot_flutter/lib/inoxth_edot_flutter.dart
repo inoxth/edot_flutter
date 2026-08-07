@@ -48,3 +48,4 @@ export 'src/edot_navigator_observer.dart' show EdotNavigatorObserver;
 // `instrumentation.dart` so this surface stays the one an app developer reads.
 export 'src/edot_signals.dart' show EdotMetricKind, EdotSeverity;
 export 'src/edot_tracer.dart' show EdotSpan, EdotSpanKind, EdotTracer;
+export 'src/edot_view_observer.dart' show EdotViewObserver;
