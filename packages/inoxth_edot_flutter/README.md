@@ -333,7 +333,7 @@ defaults to what the EDOT Agent already does on its own on each platform.
 |---|---|---|
 | `serviceName` | `String` | Identifies the app in Elastic |
 | `serviceVersion` | `String` | Application version |
-| `deploymentEnvironment` | `String` | Environment identifier, such as `prod` or `staging` |
+| `deploymentEnvironment` | `String` | Environment identifier, such as `development`, `staging`, `production` |
 | `serverUrl` | `String` | OTLP endpoint telemetry is exported to; the port is made explicit for you |
 
 ### Optional
