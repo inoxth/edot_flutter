@@ -324,9 +324,8 @@ plausible-looking, wrong trace trees the moment two async flows overlap, so use
 
 ## Configuration reference
 
-Every option on `EdotConfig`. Only the four identity fields are required; everything else
-defaults to the pinned Agents' own behaviour, which is also what this organisation's React
-Native fleet gets.
+Every option on `EdotConfig`. Only the four identity fields are required; every other option
+defaults to what the EDOT Agent already does on its own on each platform.
 
 ### Required
 
