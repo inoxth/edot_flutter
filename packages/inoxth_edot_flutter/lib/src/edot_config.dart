@@ -162,8 +162,8 @@ class EdotConfig {
   /// Creates and validates the configuration.
   ///
   /// Throws [ArgumentError] naming the offending field if any identity value is
-  /// blank or carries a `,` or `=`, or if `sessionSamplingRate` is outside
-  /// `0.0..1.0`, or if `serverUrl` is not an absolute http/https URL.
+  /// blank or carries a `,` or `=`, or if a non-null `sessionSamplingRate` is
+  /// outside `0.0..1.0`, or if `serverUrl` is not an absolute http/https URL.
   EdotConfig({
     required this.serviceName,
     required this.serviceVersion,
@@ -171,7 +171,7 @@ class EdotConfig {
     required String serverUrl,
     this.auth = const EdotAuth.none(),
     this.exportProtocol = ExportProtocol.http,
-    this.sessionSamplingRate = 1.0,
+    this.sessionSamplingRate,
     this.trackingConsent = EdotTrackingConsent.granted,
     this.debug = false,
     this.disableAgent = false,
@@ -225,19 +225,27 @@ class EdotConfig {
   /// rather than 4318.
   final ExportProtocol exportProtocol;
 
-  /// Fraction of sessions that report, from 0.0 to 1.0 inclusive.
+  /// Fraction of sessions that report, from 0.0 to 1.0 inclusive, or null (the default) to
+  /// leave it unset.
+  ///
+  /// **Unset defers to the Agent's own default** rather than this Plugin forcing a value:
+  /// left null, nothing is sent and each Agent applies its built-in default, which is 1.0 -
+  /// report every session - on both platforms (`apm-agent-ios` 1.2.1 and `agent-sdk` 1.1.0,
+  /// verified in their sources). Passing 1.0 and leaving it null therefore behave the same
+  /// today, and would diverge only if a pinned Agent ever changed its own default. Matches
+  /// this organisation's React Native SDK, which omits the rate when it is unset for the
+  /// same reason.
   ///
   /// **Honoured on Android; unreliable on iOS.** The pinned iOS Agent's sampler starts out
-  /// sampling everything and only consults this rate when the session manager announces a
+  /// sampling everything and only consults a set rate when the session manager announces a
   /// refresh, which it does only for a session that is new or has expired. A cold start
   /// therefore applies the rate and a warm one — a relaunch inside the 30-minute session
   /// window — ignores it, so the iOS fleet reports more than this asks for. There is no
-  /// workaround from here: the refresh is not public API, and this organisation's React
-  /// Native SDK passes the same rate to the same Agent, so the two fleets are affected
-  /// alike. See ADR-0001.
+  /// workaround from here: the refresh is not public API, and the React Native SDK passes
+  /// the same rate to the same Agent, so the two fleets are affected alike. See ADR-0001.
   ///
   /// Do not use this to switch telemetry off — [disableAgent] does that on both platforms.
-  final double sessionSamplingRate;
+  final double? sessionSamplingRate;
 
   /// The user's Tracking Consent as the app starts.
   ///
@@ -337,13 +345,14 @@ class EdotConfig {
     required String serviceVersion,
     required String deploymentEnvironment,
     required String serverUrl,
-    required double sessionSamplingRate,
+    required double? sessionSamplingRate,
   }) {
     _requireIdentity(serviceName, 'serviceName');
     _requireIdentity(serviceVersion, 'serviceVersion');
     _requireIdentity(deploymentEnvironment, 'deploymentEnvironment');
 
-    if (sessionSamplingRate < 0.0 || sessionSamplingRate > 1.0) {
+    if (sessionSamplingRate != null &&
+        (sessionSamplingRate < 0.0 || sessionSamplingRate > 1.0)) {
       throw ArgumentError.value(
         sessionSamplingRate,
         'sessionSamplingRate',
@@ -485,7 +494,10 @@ Map<String, Object?> encodeConfig(EdotConfig config) {
     'serverUrl': config.serverUrl,
     'collectorHost': config.collectorHost,
     'exportProtocol': config.exportProtocol.name,
-    'sessionSamplingRate': config.sessionSamplingRate,
+    // Omitted when unset so the native Agent applies its own default (1.0),
+    // rather than this Plugin forcing a value the Agent would otherwise pick.
+    if (config.sessionSamplingRate != null)
+      'sessionSamplingRate': config.sessionSamplingRate,
     'debug': config.debug,
     'disableAgent': config.disableAgent,
     'apiKey': apiKey,

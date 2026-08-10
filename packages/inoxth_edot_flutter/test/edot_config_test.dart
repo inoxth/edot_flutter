@@ -232,5 +232,18 @@ void main() {
         );
       }
     });
+
+    test('is unset by default, so the Agent applies its own default', () {
+      // Not forced to 1.0 here: leaving it null means the native Agent picks,
+      // which is what omitting it from the channel (below) relies on.
+      final config = EdotConfig(
+        serviceName: 'a',
+        serviceVersion: '1',
+        deploymentEnvironment: 'test',
+        serverUrl: 'http://localhost:4318',
+      );
+
+      expect(config.sessionSamplingRate, isNull);
+    });
   });
 }

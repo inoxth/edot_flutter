@@ -102,6 +102,33 @@ void main() {
       },
     );
 
+    test(
+      'omits the sampling rate when unset, deferring to the Agent',
+      () async {
+        // The Plugin no longer forces a rate: an unset rate must not cross the
+        // channel, so each native Agent applies its own default instead.
+        await startPlugin();
+
+        final args = calls.single.arguments as Map<Object?, Object?>;
+        expect(args.containsKey('sessionSamplingRate'), isFalse);
+      },
+    );
+
+    test('forwards the sampling rate when it is set', () async {
+      await Edot.start(
+        EdotConfig(
+          serviceName: 'example-app',
+          serviceVersion: '1.2.3',
+          deploymentEnvironment: 'test',
+          serverUrl: 'http://localhost:4318',
+          sessionSamplingRate: 0.25,
+        ),
+      );
+
+      final args = calls.single.arguments as Map<Object?, Object?>;
+      expect(args['sessionSamplingRate'], 0.25);
+    });
+
     test('a span created before start is held, then replayed in order', () async {
       // Held rather than refused, and replayed start-then-end so the Agent sees a
       // span it can build. Silently discarding it would be indistinguishable from a
