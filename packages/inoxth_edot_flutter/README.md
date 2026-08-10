@@ -73,6 +73,9 @@ are programming errors: failing loudly at startup is cheaper than silence in pro
 
 Never hardcode the URL or credential. Read them from `--dart-define` or your own config layer.
 
+Only the four identity fields above are required; every other option is in the
+[Configuration reference](#configuration-reference).
+
 ### 3. Trace navigation
 
 Navigation tracing produces a **Screen Span** per transition - ending when the destination's
@@ -284,9 +287,10 @@ Three things to know:
   exported - that has left the device.
 - **The gate covers what the Plugin emits, not what the Agent collects by itself.** On iOS,
   crash reports, lifecycle events and system metrics are produced natively and never pass
-  through it. An app that must emit *nothing* before consent is resolved should use
-  `disableAgent: true` and start the Agent only afterwards. On Android nothing measurable
-  escapes the gate, because this plugin ships no self-instrumenting artefacts there.
+  through it - each can be turned down through [`EdotIosConfig`](#ios-edotiosconfig). An app
+  that must emit *nothing* before consent is resolved should use `disableAgent: true` and start
+  the Agent only afterwards. On Android nothing measurable escapes the gate, because this plugin
+  ships no self-instrumenting artefacts there.
 
 ---
 
@@ -315,6 +319,64 @@ Edot.recordMetric('checkout.completed', 1, attributes: {'tier': 'gold'});
 Being the most recently started span does **not** make a span a parent. That rule produces
 plausible-looking, wrong trace trees the moment two async flows overlap, so use
 `runWithParent` to say what nests under what.
+
+---
+
+## Configuration reference
+
+Every option on `EdotConfig`. Only the four identity fields are required; everything else
+defaults to the pinned Agents' own behaviour, which is also what this organisation's React
+Native fleet gets.
+
+### Required
+
+| Field | Type | Purpose |
+|---|---|---|
+| `serviceName` | `String` | Identifies the app in Elastic |
+| `serviceVersion` | `String` | Application version |
+| `deploymentEnvironment` | `String` | Environment identifier, such as `prod` or `staging` |
+| `serverUrl` | `String` | OTLP endpoint telemetry is exported to; the port is made explicit for you |
+
+### Optional
+
+| Field | Type | Default | Purpose |
+|---|---|---|---|
+| `auth` | `EdotAuth` | `none()` | `apiKey` / `secretToken` / `none` - none suits a collector you run, and is wrong for Elastic Cloud |
+| `exportProtocol` | `ExportProtocol` | `http` | `http` or `grpc`; grpc needs the receiver's port, usually 4317 |
+| `sessionSamplingRate` | `double` | `1.0` | Fraction of sessions that report, `0.0`-`1.0`. Honoured on Android, [unreliable on iOS](#absent-by-design) |
+| `trackingConsent` | `EdotTrackingConsent` | `granted` | `granted` / `notGranted` / `pending` - see [Tracking Consent](#tracking-consent) |
+| `debug` | `bool` | `false` | Enables the Agent's internal logging |
+| `disableAgent` | `bool` | `false` | Stops the Agent emitting anything, for local development |
+| `urlSanitizer` | `String Function(String)?` | `null` | Last chance to reshape a request URL before it is recorded |
+| `excludedUrls` | `List<Pattern>` | `[]` | Requests whose URL matches any pattern are not traced at all |
+| `tracePropagationTargets` | `List<Pattern>?` | `null` (all hosts) | Which traced requests carry W3C Trace Context |
+| `traceAllHttpTraffic` | `bool` | `false` | Trace every `dart:io` request, not only those through this Plugin's transports |
+| `android` | `EdotAndroidConfig` | defaults | Options that exist on Android only (below) |
+| `ios` | `EdotIosConfig` | defaults | Options that exist on iOS only (below) |
+
+### Android (`EdotAndroidConfig`)
+
+| Field | Default | Purpose |
+|---|---|---|
+| `diskBufferingEnabled` | `true` | Buffer telemetry to disk so it survives offline periods (Android only; the iOS Agent persists unconditionally) |
+
+### iOS (`EdotIosConfig`)
+
+Each is an opt-*out* of something the iOS Agent does on its own. There are no Android equivalents:
+its Agent installs whatever instrumentation ships on the classpath, with no runtime switch.
+
+| Field | Default | Emits / effect | Turn off when |
+|---|---|---|---|
+| `crashReportingEnabled` | `true` | Native crash capture | You already run a crash reporter - [it will fight yours](#crash-reporting) |
+| `systemMetricsEnabled` | `true` | `system.cpu.usage` and `system.memory.usage` gauges, sampled each cycle | Device-level metrics aren't useful - they are the steadiest contributor to metric volume |
+| `appMetricsEnabled` | `true` | MetricKit reports - launch timings, app exits - batched about once a day | You already collect MetricKit yourself |
+| `lifecycleEventsEnabled` | `true` | One span per foreground/background transition, carrying `lifecycle.state` | The app foregrounds and backgrounds constantly (turn-by-turn, media) |
+
+### Value types
+
+- **`EdotAuth`**: `EdotAuth.apiKey(key)`, `EdotAuth.secretToken(token)`, `EdotAuth.none()`. Never appears in `toString`.
+- **`ExportProtocol`**: `http`, `grpc`.
+- **`EdotTrackingConsent`**: `granted`, `notGranted`, `pending`.
 
 ---
 
