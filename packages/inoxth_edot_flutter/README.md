@@ -342,7 +342,7 @@ defaults to what the EDOT Agent already does on its own on each platform.
 |---|---|---|---|
 | `auth` | `EdotAuth` | `none()` | `apiKey` / `secretToken` / `none` - none suits a collector you run, and is wrong for Elastic Cloud |
 | `exportProtocol` | `ExportProtocol` | `http` | `http` or `grpc`; grpc needs the receiver's port, usually 4317 |
-| `sessionSamplingRate` | `double?` | unset | Fraction of sessions that report, `0.0`-`1.0`. Unset defers to the Agent's own default (`1.0`). Honoured on Android, [unreliable on iOS](#absent-by-design) |
+| `sessionSamplingRate` | `double?` | unset | Fraction of sessions that report, `0.0`-`1.0`. Defaults to native agent's default. Honoured on Android, [unreliable on iOS](#absent-by-design) |
 | `trackingConsent` | `EdotTrackingConsent` | `granted` | `granted` / `notGranted` / `pending` - see [Tracking Consent](#tracking-consent) |
 | `debug` | `bool` | `false` | Enables the Agent's internal logging |
 | `disableAgent` | `bool` | `false` | Stops the Agent emitting anything, for local development |
