@@ -28,7 +28,11 @@ plugins {
 android {
     namespace = "co.inoxth.inoxth_edot_flutter"
 
-    compileSdk = 36
+    // 35, not the Flutter template's 36: AGP fails any app that compiles against an
+    // older API than a library it depends on, so building here at 36 would force every
+    // consumer to 36. Verified to compile against agent-sdk 1.1.0, and apps at 35 and
+    // 36 both build against it.
+    compileSdk = 35
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

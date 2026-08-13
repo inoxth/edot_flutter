@@ -24,7 +24,14 @@ Pin to the newest agent releases that meet the floors, matching the React Native
 | `co.elastic.otel.android:agent-sdk` | **1.1.0** |
 | `io.opentelemetry:opentelemetry-api` | **1.51.0** (matches agent 1.1.0's bundled OpenTelemetry-Java) |
 | iOS deployment target | **15.6**, Swift 5.9 |
-| Android | compileSdk 36, minSdk 24 |
+| Android | compileSdk 35, minSdk 24 |
+
+`compileSdk` is **35 rather than the Flutter template's 36**, and that is a deliberate consumer-facing
+choice: AGP fails any app that compiles against an older API than a library it depends on, so
+building this Plugin at 36 would force every consuming app to 36. At 35 it supports apps at 35 and 36
+alike, and `agent-sdk` 1.1.0 compiles against it. Note that Flutter's own `integration_test` plugin
+is built at 36, so an app using it needs 36 regardless of this Plugin - which is why the examples and
+the Seam 2 suites keep the template default.
 
 ## Considered options
 

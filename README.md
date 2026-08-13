@@ -60,7 +60,7 @@ The repository also holds test infrastructure (`edot_collector_harness`) and the
 | **0.1.x** | 1.2.1 | 1.1.0 | 15.6 | 24 |
 
 All versions require Flutter ≥ 3.44 (Swift Package Manager is default-on from that version) and
-Android `compileSdk` 36. The Agent versions are pinned; raising them raises the platform floors.
+Android `compileSdk` 35. The Agent versions are pinned; raising them raises the platform floors.
 
 ## Features
 

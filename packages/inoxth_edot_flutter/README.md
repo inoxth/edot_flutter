@@ -7,7 +7,7 @@ app does.
 | | Minimum |
 |---|---|
 | **iOS** | **15.6** - Swift Package Manager required, **no CocoaPods support** |
-| **Android** | **API 24**, compileSdk 36 |
+| **Android** | **API 24**, compileSdk 35 |
 | **Flutter** | **3.44** - SPM is default-on from this version |
 
 These floors are not incidental. The Agents are pinned to the newest releases that meet them
