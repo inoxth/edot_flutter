@@ -41,13 +41,17 @@ jobs:
 
       - run: flutter pub get
 
-      # The navigator flavor declares `.env` as a bundled asset but gitignores
-      # the file itself, so a fresh checkout has nothing to bundle and the build
-      # fails on the missing asset. The example values only need to exist for the
+      # Every flavor declares `.env` as a bundled asset but gitignores the file
+      # itself, so a fresh checkout has nothing to bundle and the build fails on
+      # the missing asset. The tracked example values only need to exist for the
       # APK to link; this job never starts the app, so nothing is exported.
-      - name: Seed the example .env
-        working-directory: packages/inoxth_edot_flutter/example/navigator
-        run: cp .env.example .env
+      - name: Seed the example .env files
+        run: |
+          for dir in packages/inoxth_edot_flutter/example/*/; do
+            if [ -f "${dir}.env.example" ]; then
+              cp "${dir}.env.example" "${dir}.env"
+            fi
+          done
 
       - name: Build the navigator example
         working-directory: packages/inoxth_edot_flutter/example/navigator
@@ -69,9 +73,13 @@ jobs:
 
       - run: flutter pub get
 
-      - name: Seed the example .env
-        working-directory: packages/inoxth_edot_flutter/example/navigator
-        run: cp .env.example .env
+      - name: Seed the example .env files
+        run: |
+          for dir in packages/inoxth_edot_flutter/example/*/; do
+            if [ -f "${dir}.env.example" ]; then
+              cp "${dir}.env.example" "${dir}.env"
+            fi
+          done
 
       - name: Build the navigator example
         working-directory: packages/inoxth_edot_flutter/example/navigator
