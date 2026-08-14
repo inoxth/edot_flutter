@@ -52,10 +52,10 @@ Prefer the highest seam a change can be proven at. Test external behaviour, not 
 
 - **Docs are single-source.** The limitations list lives once, in `packages/inoxth_edot_flutter/README.md`; do not duplicate it into the root README or elsewhere. Record architectural decisions as ADRs and keep `CONTEXT.md` in step.
 - **Doc prose uses hyphens, not em-dashes.**
-- **Ticket-driven workflow**: work is tracked as GitLab issues via `glab` (below); claim an issue with the `in-progress` label, and close it with a note mapping the change to its acceptance criteria.
+- **Ticket-driven workflow**: work is tracked as Linear issues (below); claim an issue by assigning yourself and moving it to `In Progress`, and close it with a comment mapping the change to its acceptance criteria.
 
 ## Agent skills
 
-- **Issue tracker** - issues and PRDs are GitLab issues on `gitlab.inox.co.th/nonth/edot_flutter`, driven by the `glab` CLI. See `docs/agents/issue-tracker.md`.
-- **Triage labels** - the five canonical triage roles, each label string equal to its role name. See `docs/agents/triage-labels.md`.
+- **Issue tracker** - issues and PRDs are Linear issues in the `inox` project **EDOT SDK Multi Platform**, titled with a `[Flutter] ` prefix, driven by the Linear MCP tools. See `docs/agents/issue-tracker.md`.
+- **Triage labels** - the five canonical triage roles and their Linear labels/states. See `docs/agents/triage-labels.md`.
 - **Domain docs** - single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

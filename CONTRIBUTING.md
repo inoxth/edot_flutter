@@ -106,19 +106,23 @@ says so out loud rather than reporting a green that means nothing.
 
 ## Change workflow
 
-Work is tracked as **GitLab issues** on `gitlab.inox.co.th/nonth/edot_flutter`, driven by the
-`glab` CLI. The conventions - creating, reading, labelling, closing, and the triage vocabulary -
-are in [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and
-[`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+Work is tracked as **Linear issues** in the `inox` project
+[EDOT SDK Multi Platform](https://linear.app/inox/project/edot-sdk-multi-platform-5590ec245322),
+titled with a `[Flutter] ` prefix (the project is shared with the React Native SDK). The
+conventions - creating, reading, labelling, closing, and the triage vocabulary - are in
+[`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and
+[`docs/agents/triage-labels.md`](docs/agents/triage-labels.md). Code review still happens in
+GitLab merge requests on `gitlab.inox.co.th/nonth/edot_flutter`; the issue, not the MR, is where a
+change's status is read from.
 
-1. Claim the issue (label `in-progress`).
+1. Claim the issue (assign yourself, state `In Progress`).
 2. Branch with a semantic name: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`.
 3. Build it, test-first at the appropriate seam.
 4. When the change is bound by, or changes, an architectural decision, record it as an ADR under
    `docs/adr/` and keep `CONTEXT.md` in step. Use the glossary's vocabulary in code and docs; flag
    any conflict with an existing ADR rather than quietly diverging (see
    [`docs/agents/domain.md`](docs/agents/domain.md)).
-5. Close the issue with a note that maps the work to its acceptance criteria.
+5. Close the issue (state `Done`) with a comment that maps the work to its acceptance criteria.
 
 Keep documentation single-source: the limitations list lives once, in the package README. Do not
 copy it into the root README or here.

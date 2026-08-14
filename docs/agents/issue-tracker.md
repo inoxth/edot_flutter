@@ -1,46 +1,58 @@
-# Issue tracker: GitLab
+# Issue tracker: Linear
 
-Issues and PRDs for `inoxth_edot_flutter` live as GitLab issues on the self-hosted instance `gitlab.inox.co.th`, project path `nonth/edot_flutter`. Use the [`glab`](https://gitlab.com/gitlab-org/cli) CLI for all operations.
+Issues and PRDs for `inoxth_edot_flutter` live in **Linear**, workspace `inox`:
+
+| | |
+| --- | --- |
+| Team | **DELI Dev Tasks** (`9f0817c4-0993-4303-b88b-0acf7968acd4`), issue key `DEV` |
+| Project | **EDOT SDK Multi Platform** (`db141f0c-11f5-4ea7-a571-a01545f5a019`) - [open it](https://linear.app/inox/project/edot-sdk-multi-platform-5590ec245322) |
+| Title prefix | `[Flutter] ` |
+
+The project is shared with the organisation's React Native SDK, whose issues carry a `[React-Native] ` prefix. **Always prefix a Flutter title with `[Flutter] `** so one project serves both fleets without ambiguity - the same Fleet Alignment reasoning that governs the wire attributes.
+
+Operations go through the **Linear MCP tools** (`mcp__claude_ai_Linear__*`), not a CLI. There is no `glab`/`gh` equivalent to shell out to.
 
 ## Conventions
 
-- **Create an issue**: `glab issue create --title "..." --description "..."`. Use a heredoc for multi-line descriptions. Pass `--description -` to open an editor.
-- **Read an issue**: `glab issue view <number> --comments`. Use `-F json` for machine-readable output.
-- **List issues**: `glab issue list -F json` with appropriate `--label` filters.
-- **Comment on an issue**: `glab issue note <number> --message "..."`. GitLab calls comments "notes".
-- **Apply / remove labels**: `glab issue update <number> --label "..."` / `--unlabel "..."`. Multiple labels can be comma-separated or by repeating the flag.
-- **Close**: `glab issue close <number>`. `glab issue close` does not accept a closing comment, so post the explanation first with `glab issue note <number> --message "..."`, then close.
-- **Merge requests**: GitLab calls PRs "merge requests". Use `glab mr create`, `glab mr view`, `glab mr note`, etc. — the same shape as `gh pr ...` with `mr` in place of `pr` and `note`/`--message` in place of `comment`/`--body`.
-
-Infer the repo from `git remote -v` — `glab` does this automatically when run inside a clone. For the self-hosted host, `glab` needs `GITLAB_HOST=gitlab.inox.co.th` or an entry for it in `~/.config/glab-cli/config.yml`.
+- **Create an issue**: `save_issue` with `title` (prefixed), `description` (Markdown, literal newlines), `team: "DELI Dev Tasks"`, `project: "EDOT SDK Multi Platform"`. Omit `id` when creating.
+- **Create a sub-issue**: the same call plus `parentId: "<DEV-nnn>"`. A PRD or spec is a parent issue; each work item is a sub-issue of it.
+- **Read an issue**: `get_issue` with the identifier (e.g. `DEV-1194`). Pass `includeRelations: true` for blocking/related links. Comments come from `list_comments`.
+- **List issues**: `list_issues` with `project: "EDOT SDK Multi Platform"`, plus `label`, `state`, `assignee`, or `parentId` filters. Pass `fields` to keep the response small (`["title", "status", "labels", "parentId", "url"]`).
+- **Comment on an issue**: `save_comment` with `issueId` and `body`.
+- **Apply / remove labels**: `save_issue` with `labels: ["..."]`. This **replaces the whole label set** - read the current labels first and pass the full intended list, or you will silently drop the others.
+- **Move state**: `save_issue` with `state`. The team's states are `Backlog`, `Todo`, `In Progress`, `In Review`, `Commented`, `Done`, `Canceled`, `Duplicate`.
+- **Claim**: `save_issue` with `assignee: "me"` and `state: "In Progress"`. This replaces the old `in-progress` label - in Linear, claiming is a state plus an assignee, not a label.
+- **Close**: post the explanation with `save_comment` first, then `save_issue` with `state: "Done"`. Use `Canceled` for work that will not be done and `Duplicate` (with `duplicateOf`) for a repeat.
+- **Blocking**: native relations. `save_issue` with `blockedBy: ["DEV-nnn"]` or `blocks: [...]`; both are append-only, and `removeBlockedBy` / `removeBlocks` undo them. Do not write "Blocked by" prose in the description - the relation is the canonical, UI-visible form.
+- **Cross-reference an issue** in prose by writing its bare identifier (`DEV-1194`); Linear turns it into a live mention automatically.
 
 ## Merge requests as a triage surface
 
-**MRs as a request surface: no.** _(Set to `yes` if this repo treats external merge requests as feature requests; `/triage` reads this flag.)_
+**MRs as a request surface: no.** _(`/triage` reads this flag.)_
 
-When set to `yes`, MRs run through the same labels and states as issues, using the `glab mr` equivalents:
+Code still lives on GitLab (`gitlab.inox.co.th/nonth/edot_flutter`) and code review still happens in GitLab merge requests, but merge requests are **not** a tracker surface: they carry no triage labels and no triage state. Link an MR to its Linear issue with `save_issue`'s `links` field, and keep the issue as the single place a change's status is read from.
 
-- **Read an MR**: `glab mr view <number> --comments` and `glab mr diff <number>` for the diff.
-- **List external MRs for triage**: `glab mr list -F json`, then keep only MRs whose author is not a project member/owner (a contributor's MR, not a maintainer's in-flight work).
-- **Comment / label / close**: `glab mr note`, `glab mr update --label`/`--unlabel`, `glab mr close`.
-
-Unlike GitHub, GitLab numbers issues and MRs separately, so `#42` is unambiguous once you know which surface the maintainer means.
+Because the tracker and the code host are now different systems, a bare `#42` is ambiguous - it means a GitLab MR or a historical GitLab issue. Refer to tracker items by their Linear identifier (`DEV-42`) and to merge requests as "MR !42".
 
 ## When a skill says "publish to the issue tracker"
 
-Create a GitLab issue.
+Create a Linear issue in the project above, with the `[Flutter] ` title prefix.
 
 ## When a skill says "fetch the relevant ticket"
 
-Run `glab issue view <number> --comments`.
+Run `get_issue` on the identifier, then `list_comments` for the discussion.
 
 ## Wayfinding operations
 
-Used by `/wayfinder`. The **map** is a single issue with **child** issues as tickets.
+Used by `/wayfinder`. The **map** is a single issue with **sub-issues** as tickets.
 
-- **Map**: a single issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body. `glab issue create --label wayfinder:map`. (On GitLab tiers with native epics, an epic may hold the map instead; a labelled issue works everywhere.)
-- **Child ticket**: an issue carrying `Part of #<map>` at the top of its description and labels `wayfinder:<type>` (`research`/`prototype`/`grilling`/`task`). Once claimed, the ticket is assigned to the driving dev.
-- **Blocking**: GitLab's **native blocking link** — the canonical, UI-visible representation. Add it with the `/blocked_by #<n>` quick action, posted as a note (`glab issue note <child> --message "/blocked_by #<blocker>"`). Native blocking links are a Premium/Ultimate feature; on the free tier (or where unavailable) fall back to a `Blocked by: #<n>, #<n>` line at the top of the description. A ticket is unblocked when every blocker is closed.
-- **Frontier query**: `glab issue list -F json` scoped to the map's children, drop any with an open blocker — a native `blocked_by` link to an open issue (`glab api projects/:id/issues/:iid/links`), or an open issue in the `Blocked by` line — or an assignee; first in map order wins.
-- **Claim**: `glab issue update <n> --assignee @me` — the session's first write.
-- **Resolve**: `glab issue note <n> --message "<answer>"`, then `glab issue close <n>`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+- **Map**: an issue labelled `wayfinder:map`, holding the Notes / Decisions-so-far / Fog body.
+- **Child ticket**: a **sub-issue** of the map (`parentId`) labelled `wayfinder:<type>` (`wayfinder:research` / `wayfinder:prototype` / `wayfinder:grilling` / `wayfinder:task`). Sub-issues replace the old `Part of #<map>` prose line. Once claimed, the ticket is assigned to the driving dev.
+- **Blocking**: `save_issue` with `blockedBy`. A ticket is unblocked when every blocker is in a completed or canceled state.
+- **Frontier query**: `list_issues` with `parentId: "<map>"`, then drop any ticket with an unfinished blocker (`get_issue ... includeRelations: true`) or an assignee; first in map order wins.
+- **Claim**: `save_issue` with `assignee: "me"` and `state: "In Progress"` - the session's first write.
+- **Resolve**: `save_comment` with the answer, `save_issue` with `state: "Done"`, then append a context pointer (gist + link) to the map's Decisions-so-far.
+
+## History: the GitLab era
+
+Until 2026-08 the tracker was GitLab issues on `gitlab.inox.co.th/nonth/edot_flutter`, driven by `glab`. All 35 issues and PRDs were migrated to the Linear project above, each with its comments and a provenance footer naming its GitLab origin. Every GitLab issue carries a pointer note to its Linear identifier and is frozen as history - do not reopen or comment on one. A `#N` reference inside a migrated body means the GitLab issue it was written against.
