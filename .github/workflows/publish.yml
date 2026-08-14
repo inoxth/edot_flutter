@@ -1,0 +1,102 @@
+# Publishes both packages to pub.dev from a version tag.
+#
+# Both packages ship under one version and one tag - ADR-0017. The tag is what
+# releases; see the Releasing section of CONTRIBUTING.md for how to cut one.
+#
+# ---------------------------------------------------------------------------
+# This file is inert until the settings below exist. They are applied by hand
+# (DEV-1258), not by this repo, so it cannot assert them - it only names them.
+#
+#   GitHub: an environment named `pub.dev`, with a required reviewer.
+#
+#   pub.dev, on the Admin tab of BOTH packages:
+#     - Enable publishing from GitHub Actions
+#     - Repository:  inoxth/edot_flutter
+#     - Tag pattern: v{{version}}
+#     - Require the GitHub Actions environment: pub.dev
+#
+# Requiring the environment is what stops any other workflow in this repository
+# from minting a publish token; the reviewer is what stops a mistyped tag.
+#
+# Two things that will reject a release rather than break subtly:
+#   - The version in each pubspec.yaml must equal the tag's version.
+#   - `publish_to: none` must be gone from both pubspecs (DEV-1257).
+# ---------------------------------------------------------------------------
+
+name: publish
+
+on:
+  push:
+    # Narrower than `v*`, which would also match a tag like `verified-fix`.
+    tags: ['v[0-9]*']
+
+jobs:
+  # The same gate pull requests get. Sharing the file rather than copying it is
+  # the point: a release path that checks something different from the review
+  # path is worth nothing.
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  publish-core:
+    needs: verify
+    permissions:
+      id-token: write
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: packages/inoxth_edot_flutter
+      environment: pub.dev
+
+  # The Dio package declares `inoxth_edot_flutter: ^<version>`, and that
+  # constraint cannot resolve until core is actually live. `needs` orders the
+  # jobs but says nothing about pub.dev having finished indexing, so wait for
+  # the version to be fetchable before letting the Dio publish start.
+  #
+  # Its own job because a job that calls a reusable workflow cannot also run
+  # steps.
+  await-core:
+    needs: publish-core
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for the core version to appear on pub.dev
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          url="https://pub.dev/api/packages/inoxth_edot_flutter/versions/${version}"
+
+          for attempt in $(seq 1 30); do
+            if curl -sf "$url" > /dev/null; then
+              echo "inoxth_edot_flutter ${version} is live."
+              exit 0
+            fi
+            echo "attempt ${attempt}/30: not indexed yet, retrying in 10s"
+            sleep 10
+          done
+
+          echo "::error::inoxth_edot_flutter ${version} did not appear on pub.dev within 5 minutes."
+          echo "::error::Not publishing the Dio package against a core that is not there."
+          exit 1
+
+  publish-dio:
+    needs: [verify, await-core]
+    permissions:
+      id-token: write
+    uses: dart-lang/setup-dart/.github/workflows/publish.yml@v1
+    with:
+      working-directory: packages/inoxth_edot_flutter_dio
+      environment: pub.dev
+
+# Note on the reusable workflow, which is dart-lang's own:
+#
+# It runs `dart pub get` and `dart pub publish --dry-run` inside
+# working-directory. Both packages are pub workspace members carrying
+# `resolution: workspace`, and `dart pub get` from a member directory resolves
+# at the workspace root, so that part is fine - verified locally.
+#
+# What is NOT yet verified is whether `resolution: workspace` survives into the
+# published archive, or what it does to a consumer. Dart's workspace docs are
+# silent on it. DEV-1257 settles that with the first `--dry-run`, which cannot
+# run while `publish_to: none` stands.
+#
+# It also provisions its own Flutter via flutter-actions/setup-flutter with no
+# version pinned, so the publish path does not run on the 3.44.0 that `verify`
+# pins. Acceptable - publishing does not compile the plugin - but it does mean
+# the dry-run's analysis happens under a different SDK than the gate's.
