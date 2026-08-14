@@ -142,6 +142,37 @@ frozen GitLab issues the pre-2026-08 commits reference, and reusing it makes the
 indistinguishable. Explain *why* in the body when the change is not self-evident - the ADRs hold
 the deep rationale, so the commit can point at them rather than restate them.
 
+## Releasing
+
+Both packages ship under **one version and one tag** - why is in
+[ADR-0017](docs/adr/0017-publish-both-packages-in-lockstep.md). `melos version` is not used; it
+cannot cut this release, and that ADR records what it does instead.
+
+Four edits, then a tag. To release `0.2.0`:
+
+1. `packages/inoxth_edot_flutter/pubspec.yaml` - `version: 0.2.0`
+2. `packages/inoxth_edot_flutter_dio/pubspec.yaml` - `version: 0.2.0` **and**
+   `inoxth_edot_flutter: ^0.2.0`
+3. Write both `CHANGELOG.md` entries by hand, in the prose style already there.
+4. Verify, commit, tag:
+
+```bash
+dart run melos run verify        # the lockstep guard fails if step 2 was half-done
+git add -A
+git commit -m "chore: release v0.2.0"
+git tag v0.2.0
+git push && git push --tags
+```
+
+The tag is what publishes. `verify` gates the pipeline, one reviewer approves the `pub.dev`
+environment, then the core package publishes and the Dio package follows - it has to wait, because
+its constraint cannot resolve until core is live on pub.dev.
+
+**A published version cannot be deleted or overwritten.** pub.dev allows retraction and nothing
+more, so treat the tag push as final. If you are unsure about an artefact, publish a prerelease
+(`0.2.0-dev.1`) first: prereleases do not become the latest stable, so nobody installs one by
+accident.
+
 ## What not to do
 
 - **Do not weaken or delete a failing test to make it pass.** Fix the cause, or ask if the test

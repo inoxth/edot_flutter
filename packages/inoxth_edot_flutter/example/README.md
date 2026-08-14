@@ -14,6 +14,11 @@ Pick the one whose navigation matches your app - they share the same demo screen
 `shared` is not a flavor: it holds the demo screens and primitives the three apps reuse, which is
 why each `main.dart` reads as little more than the navigation wiring.
 
+**Reading these from pub.dev?** They ship in the published package, but they will not run from it.
+Each flavor depends on `shared` through the pub workspace, and the workspace root is not part of the
+tarball - so extracted on its own, none of them resolves. Clone the repository to run them; from
+pub.dev they are worked examples to read.
+
 ## Common setup
 
 Every flavor reads its configuration from a `.env` file (via `flutter_dotenv`). Copy the template,
