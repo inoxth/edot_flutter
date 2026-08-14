@@ -1,3 +1,11 @@
+## 0.1.0-dev.1
+
+Prerelease of 0.1.0, cut to exercise publication itself rather than to ship
+anything new. It proves the archive, the pub.dev listing, and that the Dio
+package resolves against a hosted core rather than a workspace sibling.
+Identical in content to 0.1.0 below. Prereleases are not served as the latest
+stable, so `flutter pub add inoxth_edot_flutter` is unaffected by this version.
+
 ## 0.1.0
 
 First release. A Flutter plugin wrapping the pinned EDOT mobile Agents, with the

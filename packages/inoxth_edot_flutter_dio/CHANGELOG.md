@@ -1,3 +1,10 @@
+## 0.1.0-dev.1
+
+Prerelease of 0.1.0, cut alongside `inoxth_edot_flutter` 0.1.0-dev.1 to exercise
+publication itself. This is the half that matters: it is the first time this
+package resolves its plugin dependency from pub.dev instead of from the local
+workspace. Identical in content to 0.1.0 below.
+
 ## 0.1.0
 
 First release. Dio integration for `inoxth_edot_flutter`.
