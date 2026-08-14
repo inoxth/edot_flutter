@@ -1,0 +1,89 @@
+# CI for inoxth_edot_flutter.
+#
+# The Dart tier (Seam 1) and the Android build run on every push and pull
+# request. iOS is manual because it needs a macOS runner. Seam 2 does not run
+# here at all - see the note at the foot of this file, which says why out loud
+# rather than letting the gap go unnoticed.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  # Proves the pinned agent-sdk resolves and the Kotlin compiles at minSdk 24.
+  # Seam 1 mocks the method channel, so this is the only automated check that
+  # the Android half of the channel protocol still builds at all.
+  build-android:
+    runs-on: ubuntu-latest
+    container: ghcr.io/cirruslabs/flutter:3.44.0
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trust the checkout and the Flutter SDK
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$(dirname "$(dirname "$(command -v flutter)")")"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PUB_CACHE }}
+          key: pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-
+
+      - run: flutter pub get
+
+      # The navigator flavor declares `.env` as a bundled asset but gitignores
+      # the file itself, so a fresh checkout has nothing to bundle and the build
+      # fails on the missing asset. The example values only need to exist for the
+      # APK to link; this job never starts the app, so nothing is exported.
+      - name: Seed the example .env
+        working-directory: packages/inoxth_edot_flutter/example/navigator
+        run: cp .env.example .env
+
+      - name: Build the navigator example
+        working-directory: packages/inoxth_edot_flutter/example/navigator
+        run: flutter build apk --debug
+
+  # The iOS half of the channel protocol, which Seam 1 cannot reach either.
+  # Manual because macOS runners bill at 10x, and because a container cannot be
+  # used here - macOS runners do not support them, so the Flutter pin is
+  # asserted by the setup action instead of by the image.
+  build-ios:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.44.0
+
+      - run: flutter pub get
+
+      - name: Seed the example .env
+        working-directory: packages/inoxth_edot_flutter/example/navigator
+        run: cp .env.example .env
+
+      - name: Build the navigator example
+        working-directory: packages/inoxth_edot_flutter/example/navigator
+        run: flutter build ios --debug --no-codesign
+
+# Seam 2 deliberately has no job here.
+#
+# It needs two things a hosted runner does not have: Docker, to run the
+# collector the assertions read from, and a device or emulator for the app to
+# emit from. A job that can never pass would either sit permanently red or be
+# ignored - which is the same "a silently skipped tier reads as coverage it does
+# not have" trap CONTRIBUTING.md warns against.
+#
+# Run it locally instead: see the Seam 2 section of CONTRIBUTING.md. This gap is
+# recorded, not forgotten.

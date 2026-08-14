@@ -1,0 +1,40 @@
+# The single quality gate: format-check, analyze and the Seam 1 test tier.
+#
+# Extracted as a reusable workflow so ci.yml (pushes and pull requests) and the
+# release pipeline run the identical gate. A release path that checks something
+# different from the review path is the drift this exists to prevent.
+
+name: verify
+
+on:
+  workflow_call:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # The Flutter the ADRs were measured against (ADR-0001). Pinned to the exact
+    # image the GitLab pipeline named, so the toolchain is byte-identical.
+    container: ghcr.io/cirruslabs/flutter:3.44.0
+    env:
+      PUB_CACHE: ${{ github.workspace }}/.pub-cache
+    steps:
+      - uses: actions/checkout@v4
+
+      # The container user does not own the checkout or the bundled Flutter SDK,
+      # and git refuses to operate on either without being told they are safe.
+      - name: Trust the checkout and the Flutter SDK
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$(dirname "$(dirname "$(command -v flutter)")")"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.PUB_CACHE }}
+          key: pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-
+
+      # Resolves every workspace member. melos is a workspace dev-dependency
+      # rather than a global, so this is also what makes `dart run melos` work.
+      - run: flutter pub get
+
+      - run: dart run melos run verify
