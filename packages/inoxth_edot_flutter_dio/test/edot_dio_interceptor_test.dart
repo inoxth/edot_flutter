@@ -69,10 +69,22 @@ void main() {
   Map<Object?, Object?> argumentsOf(MethodCall call) =>
       call.arguments as Map<Object?, Object?>;
 
-  /// Attributes applied when the span was created.
+  /// The client span of the two a traced request starts.
+  ///
+  /// The other is its Request Transaction (ADR-0016), which the interceptor gets
+  /// from `EdotRequestTrace` exactly as the other transports do — the Agent keys
+  /// nothing off which transport produced a span.
+  MethodCall requestSpan() => callsTo(
+    'spanStart',
+  ).singleWhere((c) => argumentsOf(c)['kind'] == 'client');
+
+  MethodCall requestTransaction() => callsTo(
+    'spanStart',
+  ).singleWhere((c) => argumentsOf(c)['kind'] == 'internal');
+
+  /// Attributes applied when the client span was created.
   Map<Object?, Object?> creationAttributes() =>
-      argumentsOf(callsTo('spanStart').single)['attributes']!
-          as Map<Object?, Object?>;
+      argumentsOf(requestSpan())['attributes']! as Map<Object?, Object?>;
 
   /// Attributes set after creation, by key. Integers arrive on their own method.
   Map<Object?, Object?> intAttributes() => {
@@ -101,25 +113,34 @@ void main() {
   );
 
   group('the client span', () {
-    test('starts and ends exactly one span, of client kind', () async {
-      await startPlugin();
+    test(
+      'hangs beneath a Request Transaction, as the other transports do',
+      () async {
+        await startPlugin();
 
-      await okDio().dio.get<dynamic>('https://api.example.com/orders');
+        await okDio().dio.get<dynamic>('https://api.example.com/orders');
 
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
-      expect(argumentsOf(callsTo('spanStart').single)['kind'], 'client');
-    });
+        expect(callsTo('spanStart'), hasLength(2));
+        expect(callsTo('spanEnd'), hasLength(2));
+        expect(
+          argumentsOf(requestSpan())['parentShadowId'],
+          argumentsOf(requestTransaction())['shadowId'],
+        );
+        expect(
+          (argumentsOf(requestTransaction())['attributes']!
+                  as Map<Object?, Object?>)
+              .keys,
+          isNot(contains('http.url')),
+        );
+      },
+    );
 
     test('is named for the method and host, not the path', () async {
       await startPlugin();
 
       await okDio().dio.get<dynamic>('https://api.example.com/orders/42');
 
-      expect(
-        argumentsOf(callsTo('spanStart').single)['name'],
-        'GET api.example.com',
-      );
+      expect(argumentsOf(requestSpan())['name'], 'GET api.example.com');
     });
 
     test('carries method, URL, target, scheme and peer name', () async {
@@ -253,10 +274,7 @@ void main() {
 
       await okDio().dio.get<dynamic>('https://internal.api.example.com/x');
 
-      expect(
-        argumentsOf(callsTo('spanStart').single)['name'],
-        'GET api.example.com',
-      );
+      expect(argumentsOf(requestSpan())['name'], 'GET api.example.com');
       expect(
         creationAttributes(),
         containsPair('net.peer.name', 'api.example.com'),
@@ -315,7 +333,7 @@ void main() {
 
       await okDio().dio.get<dynamic>('https://apm.example.com.evil.test/x');
 
-      expect(callsTo('spanStart'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
     });
   });
 
@@ -336,7 +354,9 @@ void main() {
 
       expect(
         argumentsOf(callsTo('spanTraceContext').single)['shadowId'],
-        argumentsOf(callsTo('spanStart').single)['shadowId'],
+        argumentsOf(requestSpan())['shadowId'],
+        reason:
+            'the header names the request span, not its Request Transaction',
       );
     });
 
@@ -352,7 +372,7 @@ void main() {
         isFalse,
       );
       // Narrowing propagation costs the link, not the span.
-      expect(callsTo('spanStart'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
     });
 
     test('is absent from an untraced request', () async {
@@ -386,12 +406,15 @@ void main() {
 
       expect(intAttributes()['http.status_code'], 500);
       expect(callsTo('spanRecordException'), isEmpty);
-      expect(callsTo('spanMarkFailed'), hasLength(1));
+      // Both spans: the request span and its Request Transaction (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(2));
       expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'HTTP 500',
+        callsTo(
+          'spanMarkFailed',
+        ).map((c) => argumentsOf(c)['description']).toSet(),
+        {'HTTP 500'},
       );
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
 
     test('records a transport failure with Dio\'s own type', () async {
@@ -415,12 +438,14 @@ void main() {
         'DioExceptionType.connectionTimeout',
       );
       expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'DioExceptionType.connectionTimeout',
+        callsTo(
+          'spanMarkFailed',
+        ).map((c) => argumentsOf(c)['description']).toSet(),
+        {'DioExceptionType.connectionTimeout'},
       );
       // No status code: nothing answered.
       expect(intAttributes().containsKey('http.status_code'), isFalse);
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
 
     test('records a cancellation as a cancellation', () async {
@@ -443,7 +468,7 @@ void main() {
         argumentsOf(callsTo('spanRecordException').single)['type'],
         'DioExceptionType.cancel',
       );
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
 
     test('ends the span even when the transport throws', () async {
@@ -456,7 +481,7 @@ void main() {
         throwsA(isA<DioException>()),
       );
 
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
   });
 
@@ -505,8 +530,8 @@ void main() {
       final dio = Dio()..interceptors.add(EdotDioInterceptor());
       await dio.get<dynamic>('$origin/orders');
 
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
+      expect(callsTo('spanEnd'), hasLength(2));
       // Dio's own span, not the app-wide layer's: the interceptor marked the request,
       // and the marker is what the inner layer stands down for.
       expect(creationAttributes(), containsPair('http.client', 'dio'));
@@ -540,12 +565,19 @@ void main() {
       wrapped.close();
       bare.close();
 
-      // Three requests, three spans — not five, which is what two unmarked layers
-      // would produce.
-      expect(callsTo('spanStart'), hasLength(3));
-      expect(callsTo('spanEnd'), hasLength(3));
+      // Three requests, three client spans — not five, which is what two unmarked
+      // layers would produce. Six spans in all, each request also starting its own
+      // Request Transaction (ADR-0016); the marker de-duplicates requests, and a
+      // request that was never traced twice cannot have two transactions either.
+      final requestSpans = callsTo(
+        'spanStart',
+      ).where((c) => argumentsOf(c)['kind'] == 'client').toList();
 
-      final owners = callsTo('spanStart')
+      expect(requestSpans, hasLength(3));
+      expect(callsTo('spanStart'), hasLength(6));
+      expect(callsTo('spanEnd'), hasLength(6));
+
+      final owners = requestSpans
           .map(
             (call) =>
                 (argumentsOf(call)['attributes']

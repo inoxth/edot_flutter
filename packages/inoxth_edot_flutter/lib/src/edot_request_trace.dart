@@ -29,10 +29,20 @@ const String tracedMarkerValue = '1';
 /// A transport is left with only what is genuinely transport-specific: reading the
 /// method, URL and sizes out of its own request type, putting the returned headers
 /// on it, and saying how the request finished.
+///
+/// A traced request is normally **two** spans: the client span, and the Request
+/// Transaction it hangs under (ADR-0016). Requests started inside
+/// [EdotTracer.runWithParent] are one, the ambient span being the transaction
+/// already.
 class EdotRequestTrace {
-  EdotRequestTrace._(this._span, this._propagate);
+  EdotRequestTrace._(this._span, this._transaction, this._propagate);
 
   final EdotSpan _span;
+
+  /// The Request Transaction, or null when an ambient parent already provides
+  /// one (ADR-0016).
+  final EdotSpan? _transaction;
+
   final bool _propagate;
 
   /// Starts tracing a request, or returns null when it must not be traced.
@@ -99,8 +109,30 @@ class EdotRequestTrace {
       if (value != null) attributes[key] = value;
     });
 
+    final name = spanNameFor(method, sanitizedUrl);
+
+    // The Request Transaction (ADR-0016). A request span with no parent is
+    // classified as a *transaction* at intake, and a transaction never carries a
+    // destination service — so Kibana has no exit span to draw a service map edge
+    // from, and no dependency to aggregate. This gives the request one to belong to.
+    //
+    // Only when nothing else would: an ambient parent is already the transaction
+    // this request belongs to, and wrapping it again would say the request caused
+    // itself.
+    //
+    // Deliberately attribute-free — above all no `http.url`. The iOS Agent treats a
+    // parentless span carrying that key as an HTTP span needing a parent, so a
+    // Request Transaction carrying it would be wrapped in turn and one request would
+    // export three spans.
+    final transaction = Edot.tracer.ambientParent == null
+        ? Edot.tracer.startSpan(name)
+        : null;
+
     final span = Edot.tracer.startSpan(
-      spanNameFor(method, sanitizedUrl),
+      name,
+      // Null falls back to the ambient parent, which is the case the Request
+      // Transaction was not created for.
+      parent: transaction,
       kind: EdotSpanKind.client,
       attributes: attributes,
     );
@@ -114,6 +146,7 @@ class EdotRequestTrace {
     // Decided on the URL as given, for the same reason the exclusions are.
     return EdotRequestTrace._(
       span,
+      transaction,
       shouldPropagate(url, rules.tracePropagationTargets),
     );
   }
@@ -158,7 +191,7 @@ class EdotRequestTrace {
     if (statusCode != null) {
       _span.setInt('http.status_code', statusCode);
 
-      if (statusCode >= 400) _span.markFailed('HTTP $statusCode');
+      if (statusCode >= 400) _markFailed('HTTP $statusCode');
     }
 
     if (responseSize != null) {
@@ -172,15 +205,34 @@ class EdotRequestTrace {
   /// are one class covering many causes. Left alone it is the error's runtime type.
   void recordFailure(Object error, {StackTrace? stackTrace, String? type}) {
     // The exception event carries `exception.type`, which is what separates a
-    // timeout or a DNS failure from a service that answered with a 500.
+    // timeout or a DNS failure from a service that answered with a 500. It stays on
+    // the request span alone: duplicating it onto the Request Transaction would
+    // double every error this Plugin reports.
     _span.recordException(error, stackTrace: stackTrace, type: type);
-    _span.markFailed(type ?? error.runtimeType.toString());
+    _markFailed(type ?? error.runtimeType.toString());
   }
 
-  /// Ends the span. Ignored if already called.
+  /// Fails the request span, and the Request Transaction with it.
+  ///
+  /// Both, because the transaction is the only thing Kibana's error rate reads for
+  /// this request. A transaction reporting success over an exit span that failed is
+  /// worse than one reporting nothing: it is confidently wrong.
+  void _markFailed(String description) {
+    _span.markFailed(description);
+    _transaction?.markFailed(description);
+  }
+
+  /// Ends the span, and the Request Transaction after it. Ignored if already called.
   ///
   /// Ends when the response head arrives, not when the body finishes streaming. The
   /// alternative is holding the span open for as long as the caller takes to read,
   /// which measures the caller rather than the request.
-  void end() => _span.end();
+  ///
+  /// The transaction ends second so that it encloses the request rather than
+  /// finishing inside it — it started first, and a parent outliving its child is what
+  /// makes the pair readable as one operation.
+  void end() {
+    _span.end();
+    _transaction?.end();
+  }
 }

@@ -61,10 +61,10 @@ const String absentHeader = 'none';
 /// Elastic's own header, deprecated, which must never be sent.
 const String legacyHeaderName = 'elastic-apm-traceparent';
 
-/// The iOS-only synthetic parent span (ADR-0001) needs no allowance here, unlike in
-/// the network suite. It carries none of the attributes either lookup keys on — no
-/// `http.target`, and not [downstreamSpanName] — so it cannot be mistaken for either
-/// span this suite reads.
+/// The Request Transaction each request hangs under (ADR-0016) needs no allowance
+/// here, unlike in the network suite. It carries none of the attributes either lookup
+/// keys on — no `http.target`, and not [downstreamSpanName] — so it cannot be mistaken
+/// for either span this suite reads.
 ///
 /// Wire names, per ADR-0003. Restated here rather than imported: a contract that
 /// read them from the code it checks could only prove the code equals itself.

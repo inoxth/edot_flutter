@@ -60,10 +60,29 @@ void main() {
   List<MethodCall> callsTo(String method) =>
       calls.where((c) => c.method == method).toList();
 
-  /// Attributes applied when the span was created.
+  /// One of the two spans a traced request starts, by kind.
+  ///
+  /// A request produces a Request Transaction and, beneath it, the client span
+  /// (ADR-0016). Selected by kind rather than by position, so a helper reading the
+  /// wrong one of the two fails here rather than asserting against the other span.
+  MethodCall spanStartOfKind(String kind) =>
+      callsTo('spanStart').singleWhere((c) => argumentsOf(c)['kind'] == kind);
+
+  /// The client span: the one carrying the request's attributes.
+  MethodCall requestSpan() => spanStartOfKind('client');
+
+  /// The Request Transaction the client span hangs under.
+  MethodCall requestTransaction() => spanStartOfKind('internal');
+
+  /// Attributes applied when the client span was created.
   Map<Object?, Object?> creationAttributes() =>
-      argumentsOf(callsTo('spanStart').single)['attributes']!
-          as Map<Object?, Object?>;
+      argumentsOf(requestSpan())['attributes']! as Map<Object?, Object?>;
+
+  /// Every description a `spanMarkFailed` carried, in call order.
+  List<Object?> failureDescriptions() => [
+    for (final call in callsTo('spanMarkFailed'))
+      argumentsOf(call)['description'],
+  ];
 
   /// Attributes set after creation, by key. Integers arrive on their own method.
   Map<Object?, Object?> intAttributes() => {
@@ -89,18 +108,64 @@ void main() {
       ).client;
 
   group('the client span', () {
-    test('starts and ends exactly one span, of client kind', () async {
-      // One span *from Dart*. What the Agent then does with it is not visible from
-      // here: on iOS it manufactures a second, parent span for any root span
-      // carrying `http.url` (ADR-0001). That split is asserted at Seam 2, which can
-      // see what was actually exported.
+    test('hangs beneath a Request Transaction it starts itself', () async {
+      // ADR-0016. A parentless client span is recorded as a transaction at intake,
+      // and a transaction carries no destination — so nothing links this app to what
+      // it called. The transaction is minted here rather than left to the Agent,
+      // which only manufactures one on iOS.
       await startPlugin();
 
       await okClient().get(Uri.parse('https://api.example.com/orders'));
 
+      expect(callsTo('spanStart'), hasLength(2));
+      expect(callsTo('spanEnd'), hasLength(2));
+      expect(
+        argumentsOf(requestSpan())['parentShadowId'],
+        argumentsOf(requestTransaction())['shadowId'],
+        reason: 'the client span must name the transaction as its parent',
+      );
+      expect(argumentsOf(requestTransaction())['parentShadowId'], isNull);
+    });
+
+    test('leaves the Request Transaction free of HTTP attributes', () async {
+      // Above all `http.url`: the iOS Agent wraps any parentless span carrying it,
+      // so a transaction with that key would itself be wrapped and one request would
+      // export three spans (ADR-0001).
+      await startPlugin();
+
+      await okClient().get(Uri.parse('https://api.example.com/orders'));
+
+      final attributes =
+          argumentsOf(requestTransaction())['attributes']!
+              as Map<Object?, Object?>;
+
+      expect(attributes.keys, isNot(contains('http.url')));
+      expect(attributes.keys.where((k) => '$k'.startsWith('http.')), isEmpty);
+      expect(attributes.keys, isNot(contains('net.peer.name')));
+    });
+
+    test('is one span inside runWithParent, not two', () async {
+      // The ambient span is the transaction this request belongs to already, so
+      // wrapping it again would say the request caused itself. This is also the
+      // documented escape hatch from the extra span, and it has to keep working.
+      await startPlugin();
+      final checkout = Edot.tracer.startSpan('checkout');
+      calls.clear();
+
+      await Edot.tracer.runWithParent(checkout, () async {
+        await okClient().get(Uri.parse('https://api.example.com/orders'));
+      });
+
       expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
-      expect(argumentsOf(callsTo('spanStart').single)['kind'], 'client');
+      expect(argumentsOf(requestSpan())['parentShadowId'], checkout.shadowId);
+    });
+
+    test('gives the Request Transaction the request span name', () async {
+      await startPlugin();
+
+      await okClient().get(Uri.parse('https://api.example.com/orders/42'));
+
+      expect(argumentsOf(requestTransaction())['name'], 'GET api.example.com');
     });
 
     test('is named for the method and host, not the path', () async {
@@ -108,10 +173,7 @@ void main() {
 
       await okClient().get(Uri.parse('https://api.example.com/orders/42'));
 
-      expect(
-        argumentsOf(callsTo('spanStart').single)['name'],
-        'GET api.example.com',
-      );
+      expect(argumentsOf(requestSpan())['name'], 'GET api.example.com');
     });
 
     test('carries method, URL, target, scheme and client', () async {
@@ -188,11 +250,9 @@ void main() {
       await okClient(status: 500).get(Uri.parse('https://api.example.com/x'));
 
       expect(intAttributes(), containsPair('http.status_code', 500));
-      expect(callsTo('spanMarkFailed'), hasLength(1));
-      expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'HTTP 500',
-      );
+      // Both spans: a transaction reporting success over an exit span that failed
+      // would make Kibana's error rate confidently wrong (ADR-0016).
+      expect(failureDescriptions(), ['HTTP 500', 'HTTP 500']);
       expect(
         callsTo('spanRecordException'),
         isEmpty,
@@ -205,7 +265,7 @@ void main() {
 
       await okClient(status: 404).get(Uri.parse('https://api.example.com/x'));
 
-      expect(callsTo('spanMarkFailed'), hasLength(1));
+      expect(failureDescriptions(), ['HTTP 404', 'HTTP 404']);
     });
 
     test('leaves a 2xx and a 3xx unmarked', () async {
@@ -236,11 +296,11 @@ void main() {
         expect(
           argumentsOf(callsTo('spanRecordException').single)['type'],
           'TimeoutException',
+          reason:
+              'the event belongs to the request span alone, never duplicated '
+              'onto the Request Transaction',
         );
-        expect(
-          argumentsOf(callsTo('spanMarkFailed').single)['description'],
-          'TimeoutException',
-        );
+        expect(failureDescriptions(), ['TimeoutException', 'TimeoutException']);
         expect(intAttributes(), isNot(contains('http.status_code')));
       },
     );
@@ -257,7 +317,7 @@ void main() {
         throwsA(isA<SocketExceptionStub>()),
       );
 
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
 
     test('rethrows, so tracing never changes what the caller sees', () async {
@@ -325,10 +385,7 @@ void main() {
 
       await okClient().get(Uri.parse('https://internal.api.example.com/x'));
 
-      expect(
-        argumentsOf(callsTo('spanStart').single)['name'],
-        'GET api.example.com',
-      );
+      expect(argumentsOf(requestSpan())['name'], 'GET api.example.com');
       expect(
         creationAttributes(),
         containsPair('net.peer.name', 'api.example.com'),
@@ -391,7 +448,7 @@ void main() {
 
       await okClient().get(Uri.parse('https://apm.example.com.evil.test/x'));
 
-      expect(callsTo('spanStart'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
     });
   });
 

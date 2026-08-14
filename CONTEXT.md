@@ -47,6 +47,10 @@ _Avoid_: tab change, page swipe, non-route navigation
 A header on an outgoing request signalling that the Plugin has already created a span for it.
 _Avoid_: dedup header, sentinel header
 
+**Request Transaction**:
+The span a traced request is nested under, so the request is recorded as an outbound call of this app rather than as work of its own. Without one, nothing links the app to the service it called.
+_Avoid_: wrapper span, synthetic parent, dummy span, parent span
+
 **Trace Context**:
 The W3C headers that carry a span's real trace and span identifiers onto an outgoing request, so the work it causes elsewhere joins this app's trace.
 _Avoid_: traceparent, distributed tracing headers, correlation id

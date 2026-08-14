@@ -67,7 +67,7 @@ class NetworkScreen extends StatelessWidget {
     } finally {
       client.close();
     }
-    demoLog.add('Traced three sequential requests, one span each');
+    demoLog.add('Traced three sequential requests, one request span each');
   }
 
   @override
@@ -75,9 +75,10 @@ class NetworkScreen extends StatelessWidget {
     title: 'Network',
     children: [
       const DemoNote(
-        'This app enables traceAllHttpTraffic, so all three produce exactly one span '
-        'each - a request is never traced twice. One request also produces '
-        'a synthetic parent span on iOS, so counts differ by platform.',
+        'This app enables traceAllHttpTraffic, so all three produce exactly one '
+        'request span each - a request is never traced twice. Each also gets a '
+        'Request Transaction to hang under, on both platforms, so the service map '
+        'can link this app to what it called.',
       ),
       DemoActionTile(
         'EdotHttpClient',

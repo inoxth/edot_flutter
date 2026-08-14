@@ -79,6 +79,12 @@ void main() {
   Map<Object?, Object?> argumentsOf(MethodCall call) =>
       call.arguments as Map<Object?, Object?>;
 
+  /// The client span of the two a traced request starts, the other being its
+  /// Request Transaction (ADR-0016). Trace Context names this one.
+  MethodCall requestSpan() => callsTo(
+    'spanStart',
+  ).singleWhere((c) => argumentsOf(c)['kind'] == 'client');
+
   /// A client recording the requests that reached the transport, headers and all.
   ({EdotHttpClient client, List<http.BaseRequest> sent}) recordingClient() {
     final sent = <http.BaseRequest>[];
@@ -114,7 +120,9 @@ void main() {
 
       expect(
         argumentsOf(callsTo('spanTraceContext').single)['shadowId'],
-        argumentsOf(callsTo('spanStart').single)['shadowId'],
+        argumentsOf(requestSpan())['shadowId'],
+        reason:
+            'the header names the request span, not its Request Transaction',
       );
     });
 
@@ -218,8 +226,8 @@ void main() {
         Uri.parse('https://third-party.test/things'),
       );
 
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
+      expect(callsTo('spanEnd'), hasLength(2));
       expect(callsTo('spanTraceContext'), isEmpty);
     });
 
@@ -232,7 +240,7 @@ void main() {
       await probe.client.get(Uri.parse('https://api.example.com/orders'));
 
       expect(callsTo('spanTraceContext'), isEmpty);
-      expect(callsTo('spanStart'), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
       expect(probe.sent.single.headers, isNot(contains('traceparent')));
     });
 
@@ -350,7 +358,7 @@ void main() {
         Uri.parse('https://api.example.com/orders'),
       );
 
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
     });
   });
 }

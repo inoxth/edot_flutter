@@ -100,8 +100,17 @@ void main() {
   Map<Object?, Object?> argumentsOf(MethodCall call) =>
       call.arguments as Map<Object?, Object?>;
 
+  /// The client spans started, one per traced request.
+  ///
+  /// Not every `spanStart`: each request also starts a Request Transaction for its
+  /// client span to hang under (ADR-0016). De-duplication is a claim about how many
+  /// *requests* were traced, so it is counted here rather than over both spans.
+  List<MethodCall> requestSpans() => callsTo(
+    'spanStart',
+  ).where((c) => argumentsOf(c)['kind'] == 'client').toList();
+
   Map<Object?, Object?> creationAttributes() =>
-      argumentsOf(callsTo('spanStart').single)['attributes']!
+      argumentsOf(requestSpans().single)['attributes']!
           as Map<Object?, Object?>;
 
   Map<Object?, Object?> intAttributes() => {
@@ -133,8 +142,9 @@ void main() {
 
       await requestFromOwnClient('/orders');
 
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(requestSpans(), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
+      expect(callsTo('spanEnd'), hasLength(2));
       expect(creationAttributes(), containsPair('http.client', 'dart:io'));
       expect(creationAttributes(), containsPair('http.method', 'GET'));
       expect(creationAttributes(), containsPair('http.target', '/orders'));
@@ -183,7 +193,7 @@ void main() {
           },
         );
 
-        expect(callsTo('spanStart'), hasLength(1));
+        expect(requestSpans(), hasLength(1));
       },
     );
   });
@@ -196,8 +206,9 @@ void main() {
       await client.get(Uri.parse('$origin/orders'));
       client.close();
 
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(requestSpans(), hasLength(1));
+      expect(callsTo('spanStart'), hasLength(2));
+      expect(callsTo('spanEnd'), hasLength(2));
       // The outer layer's span, not this layer's: it knows more, including the Trace
       // Context it propagated.
       expect(creationAttributes(), containsPair('http.client', 'http'));
@@ -227,7 +238,7 @@ void main() {
       await requestFromOwnClient('/unmarked');
 
       expect(received['/unmarked']?.value(tracedMarkerHeader), isNull);
-      expect(callsTo('spanStart'), hasLength(1));
+      expect(requestSpans(), hasLength(1));
     });
 
     test('a followed redirect is one span, not one per hop', () async {
@@ -241,8 +252,8 @@ void main() {
       await requestFromOwnClient('/redirect');
 
       expect(received.keys, containsAll(<String>['/redirect', '/orders']));
-      expect(callsTo('spanStart'), hasLength(1));
-      expect(callsTo('spanEnd'), hasLength(1));
+      expect(requestSpans(), hasLength(1));
+      expect(callsTo('spanEnd'), hasLength(2));
       // The span names the URL that was asked for, which is the one the app knows.
       expect(creationAttributes(), containsPair('http.target', '/redirect'));
     });
@@ -309,10 +320,14 @@ void main() {
       await requestFromOwnClient('/boom');
 
       expect(intAttributes()['http.status_code'], 500);
-      expect(callsTo('spanMarkFailed'), hasLength(1));
+      // Twice: the request span and its Request Transaction, so a failed request
+      // does not read as a successful transaction (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(2));
       expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'HTTP 500',
+        callsTo(
+          'spanMarkFailed',
+        ).map((c) => argumentsOf(c)['description']).toSet(),
+        {'HTTP 500'},
       );
       // A status code is an answer, not an exception — the same rule both other
       // integrations follow.

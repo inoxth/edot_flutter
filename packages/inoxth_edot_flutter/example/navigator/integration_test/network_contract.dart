@@ -65,8 +65,9 @@ const String collectorPath = '/v1/traces';
 
 const String screenName = 'Orders';
 
-/// Carries the platform, so the host half can assert the iOS-only synthetic parent
-/// span (ADR-0001). Deliberately not an HTTP span, so it gets no parent itself.
+/// Carries the platform, for the assertions that still differ by platform.
+/// Deliberately not an HTTP span, so it gets neither a Request Transaction of its
+/// own (ADR-0016) nor the iOS Agent's synthetic parent (ADR-0001).
 const String controlSpanName = 'network-control';
 const String platformAttribute = 'test.platform';
 

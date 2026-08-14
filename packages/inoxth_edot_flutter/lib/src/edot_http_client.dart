@@ -29,13 +29,13 @@ import 'edot_tracer.dart';
 /// through its own sockets, so a request made with a bare `HttpClient` is invisible
 /// here — and to the Agent's native instrumentation too.
 ///
-/// **One request shows up as two spans on iOS.** The Agent treats any span carrying
-/// `http.url` as an HTTP span, and gives one with no parent a synthetic parent span
-/// so it belongs to a transaction, as Elastic APM's data model expects. The extra
-/// span shares this one's name and timing and carries no attributes of its own.
-/// Android does not do this, so request counts differ between the platforms. See
-/// ADR-0001. Starting the request inside [EdotTracer.runWithParent] avoids it,
-/// because the Agent only adds a parent to a span that has none.
+/// **One request shows up as two spans, on both platforms.** Elastic's data model
+/// expects a span to belong to a transaction, and a parentless one is recorded as a
+/// transaction itself — carrying no destination, so nothing links the app to what it
+/// called. The Plugin therefore gives each request a Request Transaction to hang
+/// under: same name and timing, no attributes of its own (ADR-0016). Starting the
+/// request inside [EdotTracer.runWithParent] produces one span instead, the ambient
+/// span being the transaction already.
 class EdotHttpClient extends http.BaseClient {
   /// Wraps the client that actually performs the requests. Pass an existing
   /// configured client, or a plain `http.Client()` to trace directly.

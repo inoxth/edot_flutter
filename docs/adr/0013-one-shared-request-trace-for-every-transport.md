@@ -32,6 +32,11 @@ An integration **must** go through it, and **must** call `end` exactly once for 
 request `begin` returned a trace for — including on the failure path, because a span
 that never ends stays in the Agent's registry for the life of the process.
 
+The trace a transport gets back is not always one span: `begin` also mints the Request
+Transaction the request span hangs under, and `end` ends both (ADR-0016). A transport
+neither knows nor cares — which is the point of this decision, and the reason the fix
+for a data-model requirement landed in one file rather than three.
+
 It is exported from `instrumentation.dart` rather than from the package's main
 library. Dart has no visibility between packages, so the Dio package can only reach a
 public element; `@internal` would make every use from that package an analysis

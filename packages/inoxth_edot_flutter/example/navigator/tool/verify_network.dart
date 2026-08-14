@@ -64,7 +64,7 @@ Future<void> main(List<String> args) async {
     _assertTransportFailure(output);
     _assertExclusions(output);
     _assertNothingLeaked(output);
-    _assertSyntheticParent(output);
+    _assertRequestTransaction(output);
     _assertAmbientParentAvoidsIt(output);
   } finally {
     await collector.stop();
@@ -318,18 +318,19 @@ void _assertNothingLeaked(CollectorOutput output) {
   }
 }
 
-/// Pins the Agent behaviour from ADR-0001.
+/// The Request Transaction, on both platforms (ADR-0016).
 ///
-/// On iOS every root span carrying `http.url` is exported with a manufactured
-/// parent so it belongs to a transaction; on Android nothing of the sort happens.
-/// Asserted rather than tolerated, so an Agent bump that changes it is noticed here
-/// instead of in a dashboard where request counts quietly move.
-void _assertSyntheticParent(CollectorOutput output) {
-  final platform = output
-      .spanNamed(controlSpanName)
-      .attributes[platformAttribute];
-  // Both integrations: the Agent keys this off `http.url`, not off which transport
-  // produced the span, so a Dio span is subject to exactly the same rule.
+/// This is the assertion the service map depends on. A request span exported as a
+/// root is classified as a transaction at intake and carries no destination service,
+/// so nothing links this app to what it called - which is what Android did before
+/// the Plugin minted a transaction of its own.
+///
+/// The iOS half proves the other direction: the Agent manufactures a parent for any
+/// *root* span carrying `http.url` (ADR-0001), so a third span appearing here means
+/// the Request Transaction has started carrying that attribute and triggered it.
+void _assertRequestTransaction(CollectorOutput output) {
+  // Both integrations: the transaction comes from `EdotRequestTrace`, which every
+  // transport goes through, so a Dio span is subject to exactly the same rule.
   final traced =
       [sanitizedTarget, failingPath, unreachablePath, dioPath, dioFailingPath]
           .map((target) => _spanFor(output, target))
@@ -339,19 +340,10 @@ void _assertSyntheticParent(CollectorOutput output) {
   for (final span in traced) {
     final target = span.attributes[targetAttribute];
 
-    if (platform != 'ios') {
-      if (span.parentSpanId != null) {
-        _failures.add(
-          '$target has parent ${span.parentSpanId} on $platform, expected a root',
-        );
-      }
-      continue;
-    }
-
     if (span.parentSpanId == null) {
       _failures.add(
-        '$target is a root on iOS, expected the Agent to have given it a '
-        'synthetic parent (ADR-0001)',
+        '$target was exported as a root, so it lands as a transaction with no '
+        'destination and the service map has no edge to draw (ADR-0016)',
       );
       continue;
     }
@@ -370,27 +362,42 @@ void _assertSyntheticParent(CollectorOutput output) {
     _expect(
       parent.name,
       span.name,
-      "the synthetic parent of $target takes its name",
+      'the Request Transaction of $target takes its name',
     );
     _expect(
       parent.traceId,
       span.traceId,
-      'the synthetic parent shares the trace',
+      'the Request Transaction shares the trace',
     );
+    _expect(
+      parent.parentSpanId,
+      null,
+      'the Request Transaction of $target is itself a root, so it is the '
+      'transaction rather than something the Agent wrapped in turn',
+    );
+
     if (parent.attributes.containsKey(urlAttribute)) {
       _failures.add(
-        'the synthetic parent of $target carries $urlAttribute, so it is a real '
-        'request span and this assertion is matching the wrong thing',
+        'the Request Transaction of $target carries $urlAttribute, which makes it '
+        'an HTTP span the iOS Agent will wrap in turn (ADR-0016)',
+      );
+    }
+
+    final inTrace = output.spans.where((s) => s.traceId == span.traceId).length;
+    if (inTrace != 2) {
+      _failures.add(
+        '$target exported $inTrace spans in its trace, expected 2 - the request '
+        'and its Request Transaction',
       );
     }
   }
 }
 
-/// The escape hatch from the synthetic parent, on both platforms.
+/// The escape hatch from the Request Transaction, on both platforms.
 ///
-/// A request made inside an ambient parent is not a root, so the Agent has nothing
-/// to adopt and manufactures nothing. Asserted rather than merely documented on
-/// `EdotHttpClient`: an escape hatch nobody checks is a claim, not a feature.
+/// A request made inside an ambient parent belongs to a transaction already, so
+/// neither the Plugin nor the Agent adds one. Asserted rather than merely documented
+/// on `EdotHttpClient`: an escape hatch nobody checks is a claim, not a feature.
 void _assertAmbientParentAvoidsIt(CollectorOutput output) {
   final request = _spanFor(output, parentedPath);
   if (request == null) {
@@ -410,8 +417,8 @@ void _assertAmbientParentAvoidsIt(CollectorOutput output) {
     return;
   }
 
-  // The point of the assertion: the parent is *ours*, named, not an attribute-less
-  // copy the Agent made. Asserting only "has a parent" would pass on a synthetic one.
+  // The point of the assertion: the parent is the app's own named span, not a
+  // Request Transaction. Asserting only "has a parent" would pass on either.
   _expect(
     parent.name,
     ambientParentSpanName,
