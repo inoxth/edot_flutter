@@ -217,14 +217,17 @@ class EdotTracer {
 /// Not exported from the package's main library: `EdotRequestTrace` is the only
 /// caller.
 class EdotRequestSpans {
-  EdotRequestSpans._(this.request, this._transaction);
+  EdotRequestSpans._(this.request, this.transaction);
 
   /// The client span carrying the request's attributes. Trace Context names this
-  /// one, and a failure is recorded on it.
+  /// one, and the exception event is recorded on it.
   final EdotSpan request;
 
   /// The Request Transaction, or null when an ambient parent already provided one.
-  final EdotSpan? _transaction;
+  ///
+  /// Public so a failure can be marked on it as well as on [request] — the one
+  /// thing the Plugin records on the transaction (ADR-0016).
+  final EdotSpan? transaction;
 
   /// Ends both spans at one instant. Ignored if already called.
   ///
@@ -235,7 +238,7 @@ class EdotRequestSpans {
 
     final endedAt = request._startedAt.add(request._elapsed());
     request._endAt(endedAt);
-    _transaction?._endAt(endedAt);
+    transaction?._endAt(endedAt);
   }
 }
 

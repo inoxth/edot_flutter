@@ -447,10 +447,12 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   same timestamps, and no attributes of its own. Making the request inside
   `Edot.tracer.runWithParent` produces one span instead, your own span being the transaction
   already.
-- **A failed request leaves a successful transaction.** The failed status and the exception event
-  are on the request span; its Request Transaction carries neither, because the parent the iOS
-  Agent mints carries neither. So a service's **transaction** error rate does not count HTTP
-  failures - query the exit spans for those.
+- **A failed request marks both spans failed**, so transaction error rate sees HTTP failures.
+  This is the one way the Request Transaction departs from the parent the iOS Agent mints, which
+  carries no status - and an unset status reaches Elastic as outcome `unknown`, which is excluded
+  from that chart rather than counted as a success. The exception event stays on the request span
+  alone. **The organisation's React Native fleet does not do this**, so its transactions report
+  `unknown` where these report a failure.
 - **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself -
   lifecycle events, its own network instrumentation on iOS - starts its own trace. Correlate
   through `session.id` and the Active View attributes, not through trace structure.

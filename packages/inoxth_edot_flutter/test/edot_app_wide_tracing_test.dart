@@ -326,9 +326,9 @@ void main() {
       await requestFromOwnClient('/boom');
 
       expect(intAttributes()['http.status_code'], 500);
-      // Once: the status belongs to the request span, and its Request Transaction
-      // carries none - matching the parent the iOS Agent manufactures (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(1));
+      // Both spans: the request and its Request Transaction, so the failure is not
+      // invisible to failed transaction rate (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(2));
       expect(
         callsTo(
           'spanMarkFailed',

@@ -176,7 +176,7 @@ class EdotRequestTrace {
     if (statusCode != null) {
       _span.setInt('http.status_code', statusCode);
 
-      if (statusCode >= 400) _span.markFailed('HTTP $statusCode');
+      if (statusCode >= 400) _markFailed('HTTP $statusCode');
     }
 
     if (responseSize != null) {
@@ -190,15 +190,23 @@ class EdotRequestTrace {
   /// are one class covering many causes. Left alone it is the error's runtime type.
   void recordFailure(Object error, {StackTrace? stackTrace, String? type}) {
     // The exception event carries `exception.type`, which is what separates a
-    // timeout or a DNS failure from a service that answered with a 500.
-    //
-    // Recorded on the request span alone, and so is the status: the Request
-    // Transaction carries neither, matching the parent the iOS Agent manufactures
-    // (ADR-0016). The cost is that a transaction over a failed request reads as
-    // successful, so a service's transaction error rate does not see HTTP failures
-    // on either platform — read them from the exit spans.
+    // timeout or a DNS failure from a service that answered with a 500. It stays on
+    // the request span alone — duplicating it would double every error reported.
     _span.recordException(error, stackTrace: stackTrace, type: type);
-    _span.markFailed(type ?? error.runtimeType.toString());
+    _markFailed(type ?? error.runtimeType.toString());
+  }
+
+  /// Fails the request span and its Request Transaction alike.
+  ///
+  /// The **one** place the Request Transaction departs from the parent the iOS Agent
+  /// manufactures, which carries no status (ADR-0016). Deliberate: an unset status
+  /// reaches Elastic as outcome `unknown`, which is excluded from a service's failed
+  /// transaction rate — so leaving it off makes that chart blind to the failure mode
+  /// a mobile app has most of. The transaction wraps this request and nothing else,
+  /// so when the request failed, so did it.
+  void _markFailed(String description) {
+    _span.markFailed(description);
+    _spans.transaction?.markFailed(description);
   }
 
   /// Ends both spans. Ignored if already called.

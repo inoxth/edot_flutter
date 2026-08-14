@@ -410,12 +410,13 @@ void main() {
       expect(intAttributes()['http.status_code'], 500);
       expect(callsTo('spanRecordException'), isEmpty);
       // Both spans: the request span and its Request Transaction (ADR-0016).
-      // The request span only: its Request Transaction carries no status, matching
-      // the parent the iOS Agent manufactures (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(1));
+      // Both spans: the request and its Request Transaction (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(2));
       expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'HTTP 500',
+        callsTo(
+          'spanMarkFailed',
+        ).map((c) => argumentsOf(c)['description']).toSet(),
+        {'HTTP 500'},
       );
       expect(callsTo('spanEnd'), hasLength(2));
     });
@@ -441,8 +442,10 @@ void main() {
         'DioExceptionType.connectionTimeout',
       );
       expect(
-        argumentsOf(callsTo('spanMarkFailed').single)['description'],
-        'DioExceptionType.connectionTimeout',
+        callsTo(
+          'spanMarkFailed',
+        ).map((c) => argumentsOf(c)['description']).toSet(),
+        {'DioExceptionType.connectionTimeout'},
       );
       // No status code: nothing answered.
       expect(intAttributes().containsKey('http.status_code'), isFalse);

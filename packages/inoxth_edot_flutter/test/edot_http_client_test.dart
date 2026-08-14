@@ -267,10 +267,10 @@ void main() {
       await okClient(status: 500).get(Uri.parse('https://api.example.com/x'));
 
       expect(intAttributes(), containsPair('http.status_code', 500));
-      // The request span only. Its Request Transaction carries no status, matching
-      // the parent the iOS Agent manufactures - so a transaction over a failed
-      // request reads as successful on both platforms (ADR-0016).
-      expect(failureDescriptions(), ['HTTP 500']);
+      // Both spans. An unset status reaches Elastic as outcome `unknown`, which is
+      // excluded from failed transaction rate - so a transaction with no status
+      // makes that chart blind rather than merely optimistic (ADR-0016).
+      expect(failureDescriptions(), ['HTTP 500', 'HTTP 500']);
       expect(
         callsTo('spanRecordException'),
         isEmpty,
@@ -283,7 +283,7 @@ void main() {
 
       await okClient(status: 404).get(Uri.parse('https://api.example.com/x'));
 
-      expect(failureDescriptions(), ['HTTP 404']);
+      expect(failureDescriptions(), ['HTTP 404', 'HTTP 404']);
     });
 
     test('leaves a 2xx and a 3xx unmarked', () async {
@@ -314,9 +314,11 @@ void main() {
         expect(
           argumentsOf(callsTo('spanRecordException').single)['type'],
           'TimeoutException',
-          reason: 'the event belongs to the request span, as the status does',
+          reason:
+              'the event belongs to the request span alone, unlike the '
+              'status, which both spans carry',
         );
-        expect(failureDescriptions(), ['TimeoutException']);
+        expect(failureDescriptions(), ['TimeoutException', 'TimeoutException']);
         expect(intAttributes(), isNot(contains('http.status_code')));
       },
     );
