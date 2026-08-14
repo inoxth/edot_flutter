@@ -12,8 +12,9 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # The Flutter the ADRs were measured against (ADR-0001). Pinned to the exact
-    # image the GitLab pipeline named, so the toolchain is byte-identical.
+    # The Flutter the ADRs were measured against (ADR-0001). Pinned to an exact
+    # image rather than a version range, so the toolchain cannot drift under a
+    # pipeline whose whole job is to notice drift.
     container: ghcr.io/cirruslabs/flutter:3.44.0
     env:
       PUB_CACHE: ${{ github.workspace }}/.pub-cache

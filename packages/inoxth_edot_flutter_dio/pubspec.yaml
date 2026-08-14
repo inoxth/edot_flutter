@@ -4,8 +4,8 @@ description: >-
   optional dependencies, so bundling it would impose Dio's version constraint on
   every consumer (ADR-0010).
 version: 0.1.0
-repository: https://gitlab.inox.co.th/nonth/edot_flutter
-issue_tracker: https://gitlab.inox.co.th/nonth/edot_flutter/-/issues
+repository: https://github.com/inoxth/edot_flutter
+issue_tracker: https://github.com/inoxth/edot_flutter/issues
 
 # Deferred alongside the core package.
 publish_to: none

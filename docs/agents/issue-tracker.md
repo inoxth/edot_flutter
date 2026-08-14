@@ -26,13 +26,15 @@ Operations go through the **Linear MCP tools** (`mcp__claude_ai_Linear__*`), not
 - **Blocking**: native relations. `save_issue` with `blockedBy: ["DEV-nnn"]` or `blocks: [...]`; both are append-only, and `removeBlockedBy` / `removeBlocks` undo them. Do not write "Blocked by" prose in the description - the relation is the canonical, UI-visible form.
 - **Cross-reference an issue** in prose by writing its bare identifier (`DEV-1194`); Linear turns it into a live mention automatically.
 
-## Merge requests as a triage surface
+## Pull requests as a triage surface
 
-**MRs as a request surface: no.** _(`/triage` reads this flag.)_
+**PRs as a request surface: no.** _(`/triage` reads this flag.)_
 
-Code still lives on GitLab (`gitlab.inox.co.th/nonth/edot_flutter`) and code review still happens in GitLab merge requests, but merge requests are **not** a tracker surface: they carry no triage labels and no triage state. Link an MR to its Linear issue with `save_issue`'s `links` field, and keep the issue as the single place a change's status is read from.
+Code lives on GitHub (`github.com/inoxth/edot_flutter`) and code review happens in GitHub pull requests, but pull requests are **not** a tracker surface: they carry no triage labels and no triage state. Link a PR to its Linear issue with `save_issue`'s `links` field, and keep the issue as the single place a change's status is read from.
 
-Because the tracker and the code host are now different systems, a bare `#42` is ambiguous - it means a GitLab MR or a historical GitLab issue. Refer to tracker items by their Linear identifier (`DEV-42`) and to merge requests as "MR !42".
+**GitHub Issues are enabled but are not a tracker surface either.** Linear is the sole tracker. Do not file work there, and do not read status from it.
+
+Because the tracker and the code host are different systems - and because GitHub shares one number sequence between issues and pull requests - a bare `#42` is ambiguous. Refer to tracker items by their Linear identifier (`DEV-42`) and to pull requests as "PR #42". A bare `#N` in a commit written before 2026-08 means a frozen GitLab issue, not anything on GitHub.
 
 ## When a skill says "publish to the issue tracker"
 
@@ -55,4 +57,8 @@ Used by `/wayfinder`. The **map** is a single issue with **sub-issues** as ticke
 
 ## History: the GitLab era
 
-Until 2026-08 the tracker was GitLab issues on `gitlab.inox.co.th/nonth/edot_flutter`, driven by `glab`. All 35 issues and PRDs were migrated to the Linear project above, each with its comments and a provenance footer naming its GitLab origin. Every GitLab issue carries a pointer note to its Linear identifier and is frozen as history - do not reopen or comment on one. A `#N` reference inside a migrated body means the GitLab issue it was written against.
+Until 2026-08 both the tracker and the code lived on `gitlab.inox.co.th/nonth/edot_flutter`. They moved separately, and the repo still carries traces of both moves.
+
+**The tracker moved first.** It was GitLab issues, driven by `glab`. All 35 issues and PRDs were migrated to the Linear project above, each with its comments and a provenance footer naming its GitLab origin. Every GitLab issue carries a pointer note to its Linear identifier and is frozen as history - do not reopen or comment on one. A `#N` reference inside a migrated body means the GitLab issue it was written against.
+
+**The code host moved second**, to `github.com/inoxth/edot_flutter`. The GitLab project is archived and read-only: still browsable, so a bare `#N` in any of the pre-migration commits can still be resolved to the issue it names, but it accepts no pushes and no new issues. Nothing should be added there.

@@ -111,9 +111,9 @@ Work is tracked as **Linear issues** in the `inox` project
 titled with a `[Flutter] ` prefix (the project is shared with the React Native SDK). The
 conventions - creating, reading, labelling, closing, and the triage vocabulary - are in
 [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) and
-[`docs/agents/triage-labels.md`](docs/agents/triage-labels.md). Code review still happens in
-GitLab merge requests on `gitlab.inox.co.th/nonth/edot_flutter`; the issue, not the MR, is where a
-change's status is read from.
+[`docs/agents/triage-labels.md`](docs/agents/triage-labels.md). Code review happens in GitHub pull
+requests on `github.com/inoxth/edot_flutter`; the issue, not the PR, is where a change's status is
+read from.
 
 1. Claim the issue (assign yourself, state `In Progress`).
 2. Branch with a semantic name: `feat/`, `fix/`, `chore/`, `docs/`, `refactor/`.
@@ -136,9 +136,11 @@ change touches exported telemetry.
 ## Commit messages
 
 Conventional commits: `type: imperative subject`, where `type` is `feat`, `fix`, `chore`, `docs`,
-`refactor` or `test`. Reference the issue in the subject or body (`(#17)`, `Closes #8`). Explain
-*why* in the body when the change is not self-evident - the ADRs hold the deep rationale, so the
-commit can point at them rather than restate them.
+`refactor` or `test`. Reference the tracker item by its bare Linear identifier on its own line
+(`DEV-1231`), and a pull request as `PR #42`. Do not mint a bare `#N` - that form belongs to the
+frozen GitLab issues the pre-2026-08 commits reference, and reusing it makes the two
+indistinguishable. Explain *why* in the body when the change is not self-evident - the ADRs hold
+the deep rationale, so the commit can point at them rather than restate them.
 
 ## What not to do
 
