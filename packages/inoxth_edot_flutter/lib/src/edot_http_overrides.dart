@@ -272,6 +272,7 @@ class _TracedHttpClientRequest implements HttpClientRequest {
             responseSize: response.contentLength >= 0
                 ? response.contentLength
                 : null,
+            reasonPhrase: response.reasonPhrase,
           );
           trace.end();
         },

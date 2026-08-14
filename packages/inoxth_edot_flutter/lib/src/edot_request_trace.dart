@@ -166,17 +166,36 @@ class EdotRequestTrace {
 
   /// Records a request the service answered.
   ///
-  /// A 4xx or 5xx is a failure, and only the span status makes it visible as one
-  /// without reading every attribute. It is deliberately *not* an exception: the
-  /// service answered, and OpenTelemetry keeps the two apart.
+  /// A 4xx or 5xx becomes an **exception event**, not a span status. That is what
+  /// the iOS Agent's own `URLSessionInstrumentation` does for the traffic it
+  /// instruments, and the Plugin matches it so one fleet reads the same however a
+  /// request was made (ADR-0016). `exception.type` is the status code and
+  /// `exception.message` the reason phrase, as it does.
   ///
-  /// A null [statusCode] records no status attribute. Some transports type it
-  /// nullable, and a code the Plugin did not receive is not one it can invent.
-  void recordResponse({int? statusCode, int? responseSize}) {
+  /// Note what this costs: an exception event becomes an APM error document, so
+  /// every 4xx and 5xx counts toward a service's error rate. Neither span carries a
+  /// failed status, so `event.outcome` on the exit span is derived from
+  /// `http.status_code` at intake, and the Request Transaction stays `unknown`.
+  ///
+  /// A null [statusCode] records nothing. Some transports type it nullable, and a
+  /// code the Plugin did not receive is not one it can invent. [reasonPhrase] is
+  /// likewise the transport's to supply, and absent rather than invented.
+  void recordResponse({
+    int? statusCode,
+    int? responseSize,
+    String? reasonPhrase,
+  }) {
     if (statusCode != null) {
       _span.setInt('http.status_code', statusCode);
 
-      if (statusCode >= 400) _markFailed('HTTP $statusCode');
+      if (statusCode >= 400) {
+        // The status code as the type, so a query can group by it — the Agent uses
+        // the same shape. The phrase is the message when the transport supplied one.
+        _span.recordException(
+          reasonPhrase ?? 'HTTP $statusCode',
+          type: '$statusCode',
+        );
+      }
     }
 
     if (responseSize != null) {
@@ -188,25 +207,16 @@ class EdotRequestTrace {
   ///
   /// [type] overrides what reaches `exception.type`, for transports whose exceptions
   /// are one class covering many causes. Left alone it is the error's runtime type.
-  void recordFailure(Object error, {StackTrace? stackTrace, String? type}) {
-    // The exception event carries `exception.type`, which is what separates a
-    // timeout or a DNS failure from a service that answered with a 500. It stays on
-    // the request span alone — duplicating it would double every error reported.
-    _span.recordException(error, stackTrace: stackTrace, type: type);
-    _markFailed(type ?? error.runtimeType.toString());
-  }
-
-  /// Fails the request span and its Request Transaction alike.
   ///
-  /// The **one** place the Request Transaction departs from the parent the iOS Agent
-  /// manufactures, which carries no status (ADR-0016). Deliberate: an unset status
-  /// reaches Elastic as outcome `unknown`, which is excluded from a service's failed
-  /// transaction rate — so leaving it off makes that chart blind to the failure mode
-  /// a mobile app has most of. The transaction wraps this request and nothing else,
-  /// so when the request failed, so did it.
-  void _markFailed(String description) {
-    _span.markFailed(description);
-    _spans.transaction?.markFailed(description);
+  /// An event and no status, matching the Agent's own instrumentation (ADR-0016): a
+  /// cancellation, a timeout and a refused connection are all recorded the same way,
+  /// told apart by `exception.type`. The stack trace is the one thing the Plugin adds
+  /// that the Agent has none of to give.
+  ///
+  /// Recorded on the request span alone. Putting it on the Request Transaction as
+  /// well would double every error the Plugin reports.
+  void recordFailure(Object error, {StackTrace? stackTrace, String? type}) {
+    _span.recordException(error, stackTrace: stackTrace, type: type);
   }
 
   /// Ends both spans. Ignored if already called.

@@ -81,10 +81,13 @@ void main() {
   Map<Object?, Object?> creationAttributes() =>
       argumentsOf(requestSpan())['attributes']! as Map<Object?, Object?>;
 
-  /// Every description a `spanMarkFailed` carried, in call order.
-  List<Object?> failureDescriptions() => [
-    for (final call in callsTo('spanMarkFailed'))
-      argumentsOf(call)['description'],
+  /// Every exception event recorded, as (type, message) pairs in call order.
+  ///
+  /// A failed request produces one of these and no span status, matching the
+  /// Agent's own instrumentation (ADR-0016).
+  List<(Object?, Object?)> exceptionEvents() => [
+    for (final call in callsTo('spanRecordException'))
+      (argumentsOf(call)['type'], argumentsOf(call)['message']),
   ];
 
   /// Attributes set after creation, by key. Integers arrive on their own method.
@@ -261,29 +264,45 @@ void main() {
   });
 
   group('failure', () {
-    test('marks a server error failed, keeping the status code', () async {
+    test('records a server error as an exception event', () async {
+      // An event and no status, which is what the iOS Agent's own instrumentation
+      // produces for a 400-599 (ADR-0016). The status code is the type so a query
+      // can group by it. Note the cost: this becomes an APM error document.
       await startPlugin();
 
       await okClient(status: 500).get(Uri.parse('https://api.example.com/x'));
 
       expect(intAttributes(), containsPair('http.status_code', 500));
-      // Both spans. An unset status reaches Elastic as outcome `unknown`, which is
-      // excluded from failed transaction rate - so a transaction with no status
-      // makes that chart blind rather than merely optimistic (ADR-0016).
-      expect(failureDescriptions(), ['HTTP 500', 'HTTP 500']);
+      expect(exceptionEvents(), [('500', 'HTTP 500')]);
       expect(
-        callsTo('spanRecordException'),
+        callsTo('spanMarkFailed'),
         isEmpty,
-        reason: 'a 500 is an answer, not an exception',
+        reason:
+            'neither span carries a failed status; intake derives the exit '
+            'span outcome from http.status_code',
       );
     });
 
-    test('marks a 404 failed too', () async {
+    test('uses the reason phrase as the message when there is one', () async {
+      await startPlugin();
+
+      final client = EdotHttpClient(
+        MockClient(
+          (_) async =>
+              http.Response('{}', 503, reasonPhrase: 'Service Unavailable'),
+        ),
+      );
+      await client.get(Uri.parse('https://api.example.com/x'));
+
+      expect(exceptionEvents(), [('503', 'Service Unavailable')]);
+    });
+
+    test('records a 404 the same way', () async {
       await startPlugin();
 
       await okClient(status: 404).get(Uri.parse('https://api.example.com/x'));
 
-      expect(failureDescriptions(), ['HTTP 404', 'HTTP 404']);
+      expect(exceptionEvents(), [('404', 'HTTP 404')]);
     });
 
     test('leaves a 2xx and a 3xx unmarked', () async {
@@ -292,6 +311,7 @@ void main() {
       await okClient(status: 204).get(Uri.parse('https://api.example.com/x'));
       await okClient(status: 301).get(Uri.parse('https://api.example.com/y'));
 
+      expect(exceptionEvents(), isEmpty);
       expect(callsTo('spanMarkFailed'), isEmpty);
     });
 
@@ -315,10 +335,10 @@ void main() {
           argumentsOf(callsTo('spanRecordException').single)['type'],
           'TimeoutException',
           reason:
-              'the event belongs to the request span alone, unlike the '
-              'status, which both spans carry',
+              'the type is what separates a timeout from a 500, since neither '
+              'carries a status',
         );
-        expect(failureDescriptions(), ['TimeoutException', 'TimeoutException']);
+        expect(callsTo('spanMarkFailed'), isEmpty);
         expect(intAttributes(), isNot(contains('http.status_code')));
       },
     );

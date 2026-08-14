@@ -51,7 +51,7 @@ const String dioPath = '/dio-orders';
 ///
 /// The behaviour Dio does not share: it raises a rejected status as an exception
 /// where `package:http` returns a response. This span must therefore look exactly
-/// like [failingPath]'s — a status code and a failed span, with no exception event —
+/// like [failingPath]'s — a status code and one exception event, no span status —
 /// or the two integrations report the same server behaviour differently.
 const String dioFailingPath = '/dio-boom';
 
@@ -88,3 +88,13 @@ const String screenNameAttribute = 'screen.name';
 
 /// Event name OpenTelemetry gives a recorded exception.
 const String exceptionEventName = 'exception';
+
+/// Attribute carrying the exception's message on that event.
+const String exceptionMessageAttribute = 'exception.message';
+
+/// OTLP status code for UNSET — what every span on the request path must carry.
+///
+/// The Plugin sets no status there at all (ADR-0016), matching what the iOS Agent's
+/// own instrumentation does: a 4xx or 5xx is an exception event, and intake derives
+/// the exit span's outcome from `http.status_code`.
+const int unsetStatus = 0;

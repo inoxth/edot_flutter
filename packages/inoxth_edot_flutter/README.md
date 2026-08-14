@@ -447,12 +447,17 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   same timestamps, and no attributes of its own. Making the request inside
   `Edot.tracer.runWithParent` produces one span instead, your own span being the transaction
   already.
-- **A failed request marks both spans failed**, so transaction error rate sees HTTP failures.
-  This is the one way the Request Transaction departs from the parent the iOS Agent mints, which
-  carries no status - and an unset status reaches Elastic as outcome `unknown`, which is excluded
-  from that chart rather than counted as a success. The exception event stays on the request span
-  alone. **The organisation's React Native fleet does not do this**, so its transactions report
-  `unknown` where these report a failure.
+- **No request span carries a span status**, on either platform, matching the iOS Agent's own
+  network instrumentation. A 4xx or 5xx is recorded as an **exception event** instead -
+  `exception.type` is the status code, `exception.message` the reason phrase - and so is a
+  timeout, a refused connection or a cancellation, told apart by `exception.type`. The event goes
+  on the request span alone, never on its Request Transaction.
+- **Alert on error rate, not on failed transaction rate.** The exception events become APM error
+  documents, so every 4xx and 5xx counts toward a service's error rate and appears in the Errors
+  view. Failure per destination comes from the request span, whose outcome Elastic derives from
+  `http.status_code`. The Request Transaction has no HTTP attributes to derive one from, so it
+  reports outcome `unknown` - which Kibana **excludes** from failed transaction rate rather than
+  counting as a success, leaving an alert built on that chart with no data to fire on.
 - **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself -
   lifecycle events, its own network instrumentation on iOS - starts its own trace. Correlate
   through `session.id` and the Active View attributes, not through trace structure.

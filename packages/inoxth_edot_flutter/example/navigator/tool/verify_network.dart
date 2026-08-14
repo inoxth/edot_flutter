@@ -110,7 +110,7 @@ void _report(CollectorOutput output) {
       '    ${span.name}  kind=${span.kind.name}  '
       'client=${span.attributes[clientAttribute]}  '
       'target=${span.attributes[targetAttribute]}  '
-      'status=${span.attributes[statusAttribute]}  error=${span.isError}  '
+      'http=${span.attributes[statusAttribute]}  status=${span.statusCode}  '
       'parent=${span.parentSpanId ?? 'root'}',
     );
   }
@@ -132,7 +132,10 @@ void _assertTracedRequest(CollectorOutput output) {
   _expect(span.attributes[clientAttribute], 'http', clientAttribute);
   _expect(span.attributes[statusAttribute], 200, statusAttribute);
   _expect(span.attributes[peerNameAttribute], '127.0.0.1', peerNameAttribute);
-  _expect(span.isError, false, 'a 200 must not be an error');
+  // Unset, not OK. The Plugin sets no status anywhere on the request path, as the
+  // iOS Agent's own instrumentation does not (ADR-0016); intake derives the exit
+  // span's outcome from `http.status_code`.
+  _expect(span.statusCode, unsetStatus, 'span status');
 
   // The screen the request was made from (ADR-0004), carried through the same
   // creation-time path as the http attributes.
@@ -184,7 +187,7 @@ void _assertDioRequest(CollectorOutput output) {
   _expect(span.attributes[methodAttribute], 'GET', methodAttribute);
   _expect(span.attributes[statusAttribute], 200, statusAttribute);
   _expect(span.attributes[peerNameAttribute], '127.0.0.1', peerNameAttribute);
-  _expect(span.isError, false, 'a 200 must not be an error');
+  _expect(span.statusCode, unsetStatus, 'span status');
 
   // The screen the request was made from, which reaches a Dio span through the same
   // creation-time path (ADR-0004).
@@ -207,9 +210,10 @@ void _assertDioRequest(CollectorOutput output) {
 /// The one behaviour Dio does not share, asserted where it is observable.
 ///
 /// Dio raises a rejected status as an exception where `package:http` returns a
-/// response. Recorded naively that puts an exception event on Dio's 500 spans and not
-/// on the other integration's, for identical server behaviour — so the two are
-/// compared against each other here rather than each against a fixed expectation.
+/// response. Recorded naively that would describe Dio's 500 as a transport failure
+/// and the other integration's as an answer, for identical server behaviour — so the
+/// two are compared against each other here rather than each against a fixed
+/// expectation.
 void _assertDioRejectedStatus(CollectorOutput output) {
   final dioSpan = _spanFor(output, dioFailingPath);
   if (dioSpan == null) {
@@ -217,17 +221,19 @@ void _assertDioRejectedStatus(CollectorOutput output) {
     return;
   }
 
-  _expect(dioSpan.attributes[statusAttribute], 500, statusAttribute);
-  _expect(dioSpan.isError, true, 'a 500 must be an error');
+  _assertRejectedStatusShape(dioSpan, 'the Dio 500 span');
 
-  if (dioSpan.eventNamed(exceptionEventName) != null) {
-    _failures.add(
-      'the Dio 500 span carries an $exceptionEventName event. Dio raises a '
-      'rejected status as an exception, but a status code is an answer — and the '
-      '$failingPath span does not carry one, so the two integrations would '
-      'report the same server behaviour differently',
-    );
-  }
+  // Against the other integration's, not against a constant: the point is that they
+  // agree, and both being wrong the same way is the one thing a fixed expectation
+  // here would not catch.
+  final other = _spanFor(output, failingPath);
+  if (other == null) return;
+
+  _expect(
+    dioSpan.eventNamed(exceptionEventName)?.attributes[exceptionTypeAttribute],
+    other.eventNamed(exceptionEventName)?.attributes[exceptionTypeAttribute],
+    '$exceptionTypeAttribute on the Dio 500 span, against the $failingPath one',
+  );
 }
 
 void _assertServerFailure(CollectorOutput output) {
@@ -237,15 +243,36 @@ void _assertServerFailure(CollectorOutput output) {
     return;
   }
 
-  _expect(span.attributes[statusAttribute], 500, statusAttribute);
-  _expect(span.isError, true, 'a 500 must be an error');
+  _assertRejectedStatusShape(span, 'the 500 span');
+}
 
-  // What separates it from a transport failure: the server answered, so there is
-  // no exception event.
-  if (span.eventNamed(exceptionEventName) != null) {
+/// What a 4xx or 5xx must look like, whichever integration produced it.
+///
+/// An exception event and no span status, which is what the iOS Agent's own
+/// `URLSessionInstrumentation` records (ADR-0016): the status code is
+/// `exception.type`, so a dashboard can group by it, and intake derives the exit
+/// span's outcome from `http.status_code` rather than from a status the Plugin set.
+void _assertRejectedStatusShape(ExportedSpan span, String what) {
+  _expect(span.attributes[statusAttribute], 500, '$statusAttribute on $what');
+  _expect(span.statusCode, unsetStatus, 'span status on $what');
+
+  final event = span.eventNamed(exceptionEventName);
+  if (event == null) {
+    _failures.add('$what carries no $exceptionEventName event');
+    return;
+  }
+
+  _expect(
+    event.attributes[exceptionTypeAttribute],
+    '500',
+    '$exceptionTypeAttribute on $what',
+  );
+
+  final message = event.attributes[exceptionMessageAttribute];
+  if (message is! String || message.isEmpty) {
     _failures.add(
-      'the 500 span carries an $exceptionEventName event; a status code is an '
-      'answer, not an exception',
+      '$exceptionMessageAttribute on $what is $message, expected the reason '
+      'phrase or a stand-in for it',
     );
   }
 }
@@ -257,7 +284,9 @@ void _assertTransportFailure(CollectorOutput output) {
     return;
   }
 
-  _expect(span.isError, true, 'a refused connection must be an error');
+  // Unset here too: a refused connection is told from a server error by the absence
+  // of a status code and the type on its event, not by a status the Plugin set.
+  _expect(span.statusCode, unsetStatus, 'span status');
 
   // The other half of telling failures apart: no status code, because nothing
   // answered, and an exception event naming the type that did happen.
@@ -329,6 +358,13 @@ void _assertNothingLeaked(CollectorOutput output) {
 /// *root* span carrying `http.url` (ADR-0001), so a third span appearing here means
 /// the Request Transaction has started carrying that attribute and triggered it.
 void _assertRequestTransaction(CollectorOutput output) {
+  // Only the timing assertion still differs by platform, and only because the Android
+  // Agent rewrites timestamps - see `_assertSharedTiming`.
+  final platform = output
+      .spansNamed(controlSpanName)
+      .firstOrNull
+      ?.attributes[platformAttribute];
+
   // Both integrations: the transaction comes from `EdotRequestTrace`, which every
   // transport goes through, so a Dio span is subject to exactly the same rule.
   final traced =
@@ -381,16 +417,23 @@ void _assertRequestTransaction(CollectorOutput output) {
     // on the wire because the two spans are minted from one clock reading in Dart -
     // if that ever became two, only this would notice.
     _expect(parent.kind, span.kind, 'the Request Transaction takes its kind');
+    _assertSharedTiming(parent, span, target, platform);
+
     _expect(
-      parent.startNanos,
-      span.startNanos,
-      'the Request Transaction of $target starts with it',
+      parent.statusCode,
+      unsetStatus,
+      'the Request Transaction of $target carries no status, as the parent the '
+      'iOS Agent manufactures does not',
     );
-    _expect(
-      parent.endNanos,
-      span.endNanos,
-      'the Request Transaction of $target ends with it',
-    );
+
+    // The event belongs to the request alone. On the transaction as well it would
+    // double every error the Plugin reports (ADR-0016).
+    if (parent.eventNamed(exceptionEventName) != null) {
+      _failures.add(
+        'the Request Transaction of $target carries an $exceptionEventName '
+        'event, which would report the same error twice',
+      );
+    }
 
     // Carries nothing of the Plugin's own - the Agent's own additions (`session.id`,
     // `type`) are all the Agent's parent ever had. `http.url` above all: it is what
@@ -412,6 +455,69 @@ void _assertRequestTransaction(CollectorOutput output) {
       );
     }
   }
+}
+
+/// The pair was minted from one clock reading, as far as the wire can still show it.
+///
+/// Exact on iOS: Dart mints both spans from one `DateTime.now()` and one stopwatch
+/// (ADR-0005), the Agent passes those timestamps through, so identical values reach the
+/// collector and a second reading would show up here as a difference.
+///
+/// Not observable on Android, and that is the Agent's doing rather than the Plugin's.
+/// `ClockExporterGateManager` stamps every span created before the Agent's clock sync
+/// lands with its own native elapsed-time reading, and `TimeUpdatedSpanData` rewrites
+/// that span's timestamps from it at export - `start = elapsed + offset`,
+/// `end = start + duration`. The two halves of a pair are read on separate channel
+/// calls, so they land a few nanoseconds apart however Dart minted them (ADR-0005).
+///
+/// So Android asserts what survives the rewrite - equal durations, and a skew far below
+/// anything a second `DateTime.now()` could produce - and says out loud what it could
+/// not prove rather than passing a weaker assertion quietly.
+void _assertSharedTiming(
+  ExportedSpan parent,
+  ExportedSpan span,
+  Object? target,
+  Object? platform,
+) {
+  // Asserted on both: it is the one property `TimeUpdatedSpanData` carries through, and
+  // two clock readings in Dart would break it as surely as the rest.
+  _expect(
+    parent.endNanos - parent.startNanos,
+    span.endNanos - span.startNanos,
+    'the Request Transaction of $target lasts exactly as long as it',
+  );
+
+  if (platform == 'android') {
+    final skew = (span.startNanos - parent.startNanos).abs();
+    stdout.writeln(
+      '    note: the Agent rewrites Android timestamps, so identical start and end '
+      'could not be asserted for $target - equal duration and ${skew}ns of skew '
+      'instead (ADR-0005).',
+    );
+
+    // A microsecond is two orders of magnitude above the rewrite's own jitter and far
+    // below the gap two `DateTime.now()` calls would leave, so this still fails if the
+    // pair ever stops sharing one reading.
+    if (skew > 1000) {
+      _failures.add(
+        'the Request Transaction of $target starts ${skew}ns from it, more than the '
+        "Agent's clock rewrite accounts for - the pair is no longer minted from one "
+        'clock reading',
+      );
+    }
+    return;
+  }
+
+  _expect(
+    parent.startNanos,
+    span.startNanos,
+    'the Request Transaction of $target starts with it',
+  );
+  _expect(
+    parent.endNanos,
+    span.endNanos,
+    'the Request Transaction of $target ends with it',
+  );
 }
 
 /// The escape hatch from the Request Transaction, on both platforms.

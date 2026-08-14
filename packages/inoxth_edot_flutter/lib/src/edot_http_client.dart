@@ -76,6 +76,9 @@ class EdotHttpClient extends http.BaseClient {
       trace.recordResponse(
         statusCode: response.statusCode,
         responseSize: response.contentLength,
+        // Reaches `exception.message` on a 4xx or 5xx. Nullable on this transport,
+        // and absent rather than invented when the service sent none.
+        reasonPhrase: response.reasonPhrase,
       );
 
       return response;

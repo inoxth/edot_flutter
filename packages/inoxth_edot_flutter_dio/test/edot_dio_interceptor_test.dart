@@ -95,6 +95,12 @@ void main() {
       argumentsOf(call)['key']: argumentsOf(call)['value'],
   };
 
+  /// Every exception event recorded, as (`exception.type`, `exception.message`).
+  List<(Object?, Object?)> exceptionEvents() => [
+    for (final call in callsTo('spanRecordException'))
+      (argumentsOf(call)['type'], argumentsOf(call)['message']),
+  ];
+
   /// A `Dio` whose transport is [respond], with the interceptor installed.
   ({Dio dio, _StubAdapter adapter}) dioReturning(
     Future<ResponseBody> Function(RequestOptions options) respond,
@@ -392,11 +398,11 @@ void main() {
   });
 
   group('failure', () {
-    test('records a rejected status code as an answer, not an exception', () async {
+    test('records a rejected status code as the answer it is', () async {
       // The difference this integration has to absorb: Dio raises a 500 as a
       // `DioException` where `package:http` returns it as a response. Recording it as
-      // an exception would put an event on one integration's 500 spans and not the
-      // other's, for the same server behaviour.
+      // a transport failure would describe one integration's 500 as unreachable and
+      // the other's as answered, for the same server behaviour.
       await startPlugin();
 
       await expectLater(
@@ -408,16 +414,11 @@ void main() {
       );
 
       expect(intAttributes()['http.status_code'], 500);
-      expect(callsTo('spanRecordException'), isEmpty);
-      // Both spans: the request span and its Request Transaction (ADR-0016).
+      // The same event `EdotHttpClient` records for an unrejected 500: the status
+      // code as the type, and no status on either span (ADR-0016).
+      expect(exceptionEvents(), [('500', 'HTTP 500')]);
+      expect(callsTo('spanMarkFailed'), isEmpty);
       // Both spans: the request and its Request Transaction (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(2));
-      expect(
-        callsTo(
-          'spanMarkFailed',
-        ).map((c) => argumentsOf(c)['description']).toSet(),
-        {'HTTP 500'},
-      );
       expect(callsTo('spanEnd'), hasLength(2));
     });
 
@@ -441,12 +442,7 @@ void main() {
         argumentsOf(callsTo('spanRecordException').single)['type'],
         'DioExceptionType.connectionTimeout',
       );
-      expect(
-        callsTo(
-          'spanMarkFailed',
-        ).map((c) => argumentsOf(c)['description']).toSet(),
-        {'DioExceptionType.connectionTimeout'},
-      );
+      expect(callsTo('spanMarkFailed'), isEmpty);
       // No status code: nothing answered.
       expect(intAttributes().containsKey('http.status_code'), isFalse);
       expect(callsTo('spanEnd'), hasLength(2));

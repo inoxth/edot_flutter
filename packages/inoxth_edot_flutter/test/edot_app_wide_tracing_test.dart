@@ -326,18 +326,11 @@ void main() {
       await requestFromOwnClient('/boom');
 
       expect(intAttributes()['http.status_code'], 500);
-      // Both spans: the request and its Request Transaction, so the failure is not
-      // invisible to failed transaction rate (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(2));
-      expect(
-        callsTo(
-          'spanMarkFailed',
-        ).map((c) => argumentsOf(c)['description']).toSet(),
-        {'HTTP 500'},
-      );
-      // A status code is an answer, not an exception — the same rule both other
-      // integrations follow.
-      expect(callsTo('spanRecordException'), isEmpty);
+      // An exception event and no status, the same rule all three integrations
+      // follow, and what the Agent's own instrumentation produces (ADR-0016).
+      expect(callsTo('spanRecordException'), hasLength(1));
+      expect(argumentsOf(callsTo('spanRecordException').single)['type'], '500');
+      expect(callsTo('spanMarkFailed'), isEmpty);
     });
 
     test('produces no span when the connection never opens', () async {

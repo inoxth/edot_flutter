@@ -79,6 +79,7 @@ class EdotDioInterceptor extends Interceptor {
       trace.recordResponse(
         statusCode: response.statusCode,
         responseSize: _responseSize(response.headers),
+        reasonPhrase: response.statusMessage,
       );
     });
 
@@ -92,12 +93,14 @@ class EdotDioInterceptor extends Interceptor {
 
       // A status code Dio rejected is still an answer. Dio raises 4xx and 5xx as
       // exceptions where `EdotHttpClient` returns them as responses, and recording
-      // that difference would put an exception event on one integration's 500 spans
-      // and not the other's — so it is recorded as the answer it is.
+      // that difference would describe one integration's 500 as a transport failure
+      // and the other's as an answer — so it goes through the same path as any other
+      // response, and produces the same event.
       if (response != null) {
         trace.recordResponse(
           statusCode: response.statusCode,
           responseSize: _responseSize(response.headers),
+          reasonPhrase: response.statusMessage,
         );
         return;
       }
