@@ -81,9 +81,14 @@ void main() {
 
   /// The client span of the two a traced request starts, the other being its
   /// Request Transaction (ADR-0016). Trace Context names this one.
-  MethodCall requestSpan() => callsTo(
-    'spanStart',
-  ).singleWhere((c) => argumentsOf(c)['kind'] == 'client');
+  ///
+  /// Found by its attributes: the pair matches what the iOS Agent manufactures, so
+  /// name, kind and timestamps are identical on both.
+  MethodCall requestSpan() => callsTo('spanStart').singleWhere(
+    (c) => (argumentsOf(c)['attributes']! as Map<Object?, Object?>).containsKey(
+      'http.url',
+    ),
+  );
 
   /// A client recording the requests that reached the transport, headers and all.
   ({EdotHttpClient client, List<http.BaseRequest> sent}) recordingClient() {

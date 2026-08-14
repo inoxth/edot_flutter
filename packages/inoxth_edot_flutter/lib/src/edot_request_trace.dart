@@ -31,19 +31,21 @@ const String tracedMarkerValue = '1';
 /// on it, and saying how the request finished.
 ///
 /// A traced request is normally **two** spans: the client span, and the Request
-/// Transaction it hangs under (ADR-0016). Requests started inside
+/// Transaction it hangs under (ADR-0016) - the same pair, carrying the same values,
+/// that the iOS Agent manufactures on its own. Requests started inside
 /// [EdotTracer.runWithParent] are one, the ambient span being the transaction
 /// already.
 class EdotRequestTrace {
-  EdotRequestTrace._(this._span, this._transaction, this._propagate);
+  EdotRequestTrace._(this._spans, this._propagate);
 
-  final EdotSpan _span;
-
-  /// The Request Transaction, or null when an ambient parent already provides
-  /// one (ADR-0016).
-  final EdotSpan? _transaction;
+  /// The client span and the Request Transaction it hangs under (ADR-0016).
+  final EdotRequestSpans _spans;
 
   final bool _propagate;
+
+  /// The span everything but [end] records on: attributes, status and the
+  /// exception event all belong to the request, not to its transaction.
+  EdotSpan get _span => _spans.request;
 
   /// Starts tracing a request, or returns null when it must not be traced.
   ///
@@ -109,33 +111,17 @@ class EdotRequestTrace {
       if (value != null) attributes[key] = value;
     });
 
-    final name = spanNameFor(method, sanitizedUrl);
-
-    // The Request Transaction (ADR-0016). A request span with no parent is
-    // classified as a *transaction* at intake, and a transaction never carries a
-    // destination service — so Kibana has no exit span to draw a service map edge
-    // from, and no dependency to aggregate. This gives the request one to belong to.
-    //
-    // Only when nothing else would: an ambient parent is already the transaction
-    // this request belongs to, and wrapping it again would say the request caused
-    // itself.
-    //
-    // Deliberately attribute-free — above all no `http.url`. The iOS Agent treats a
-    // parentless span carrying that key as an HTTP span needing a parent, so a
-    // Request Transaction carrying it would be wrapped in turn and one request would
-    // export three spans.
-    final transaction = Edot.tracer.ambientParent == null
-        ? Edot.tracer.startSpan(name)
-        : null;
-
-    final span = Edot.tracer.startSpan(
-      name,
-      // Null falls back to the ambient parent, which is the case the Request
-      // Transaction was not created for.
-      parent: transaction,
-      kind: EdotSpanKind.client,
+    // Two spans, not one (ADR-0016). A request span with no parent is classified as
+    // a *transaction* at intake, and a transaction never carries a destination
+    // service — so Kibana has no exit span to draw a service map edge from, and no
+    // dependency to aggregate. The Request Transaction gives the request one to
+    // belong to, and matches the parent the iOS Agent manufactures for itself:
+    // same name, same kind, the same timestamps, and no attributes of its own.
+    final spans = Edot.tracer.startRequest(
+      spanNameFor(method, sanitizedUrl),
       attributes: attributes,
     );
+    final span = spans.request;
 
     // Integers cannot travel with the creation attributes, which are strings only,
     // so they follow immediately after.
@@ -145,8 +131,7 @@ class EdotRequestTrace {
 
     // Decided on the URL as given, for the same reason the exclusions are.
     return EdotRequestTrace._(
-      span,
-      transaction,
+      spans,
       shouldPropagate(url, rules.tracePropagationTargets),
     );
   }
@@ -191,7 +176,7 @@ class EdotRequestTrace {
     if (statusCode != null) {
       _span.setInt('http.status_code', statusCode);
 
-      if (statusCode >= 400) _markFailed('HTTP $statusCode');
+      if (statusCode >= 400) _span.markFailed('HTTP $statusCode');
     }
 
     if (responseSize != null) {
@@ -205,34 +190,24 @@ class EdotRequestTrace {
   /// are one class covering many causes. Left alone it is the error's runtime type.
   void recordFailure(Object error, {StackTrace? stackTrace, String? type}) {
     // The exception event carries `exception.type`, which is what separates a
-    // timeout or a DNS failure from a service that answered with a 500. It stays on
-    // the request span alone: duplicating it onto the Request Transaction would
-    // double every error this Plugin reports.
+    // timeout or a DNS failure from a service that answered with a 500.
+    //
+    // Recorded on the request span alone, and so is the status: the Request
+    // Transaction carries neither, matching the parent the iOS Agent manufactures
+    // (ADR-0016). The cost is that a transaction over a failed request reads as
+    // successful, so a service's transaction error rate does not see HTTP failures
+    // on either platform — read them from the exit spans.
     _span.recordException(error, stackTrace: stackTrace, type: type);
-    _markFailed(type ?? error.runtimeType.toString());
+    _span.markFailed(type ?? error.runtimeType.toString());
   }
 
-  /// Fails the request span, and the Request Transaction with it.
-  ///
-  /// Both, because the transaction is the only thing Kibana's error rate reads for
-  /// this request. A transaction reporting success over an exit span that failed is
-  /// worse than one reporting nothing: it is confidently wrong.
-  void _markFailed(String description) {
-    _span.markFailed(description);
-    _transaction?.markFailed(description);
-  }
-
-  /// Ends the span, and the Request Transaction after it. Ignored if already called.
+  /// Ends both spans. Ignored if already called.
   ///
   /// Ends when the response head arrives, not when the body finishes streaming. The
   /// alternative is holding the span open for as long as the caller takes to read,
   /// which measures the caller rather than the request.
   ///
-  /// The transaction ends second so that it encloses the request rather than
-  /// finishing inside it — it started first, and a parent outliving its child is what
-  /// makes the pair readable as one operation.
-  void end() {
-    _span.end();
-    _transaction?.end();
-  }
+  /// Both take the *same* end timestamp, as the iOS Agent's manufactured parent
+  /// takes its child's.
+  void end() => _spans.end();
 }

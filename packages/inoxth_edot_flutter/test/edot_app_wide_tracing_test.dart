@@ -105,9 +105,15 @@ void main() {
   /// Not every `spanStart`: each request also starts a Request Transaction for its
   /// client span to hang under (ADR-0016). De-duplication is a claim about how many
   /// *requests* were traced, so it is counted here rather than over both spans.
-  List<MethodCall> requestSpans() => callsTo(
-    'spanStart',
-  ).where((c) => argumentsOf(c)['kind'] == 'client').toList();
+  ///
+  /// Told apart by the attributes, not the kind: the pair matches what the iOS Agent
+  /// manufactures, so both spans share the request's name, kind and timestamps.
+  List<MethodCall> requestSpans() => callsTo('spanStart')
+      .where(
+        (c) => (argumentsOf(c)['attributes']! as Map<Object?, Object?>)
+            .containsKey('http.url'),
+      )
+      .toList();
 
   Map<Object?, Object?> creationAttributes() =>
       argumentsOf(requestSpans().single)['attributes']!
@@ -320,9 +326,9 @@ void main() {
       await requestFromOwnClient('/boom');
 
       expect(intAttributes()['http.status_code'], 500);
-      // Twice: the request span and its Request Transaction, so a failed request
-      // does not read as a successful transaction (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(2));
+      // Once: the status belongs to the request span, and its Request Transaction
+      // carries none - matching the parent the iOS Agent manufactures (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(1));
       expect(
         callsTo(
           'spanMarkFailed',

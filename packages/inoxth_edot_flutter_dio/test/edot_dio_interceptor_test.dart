@@ -74,13 +74,16 @@ void main() {
   /// The other is its Request Transaction (ADR-0016), which the interceptor gets
   /// from `EdotRequestTrace` exactly as the other transports do — the Agent keys
   /// nothing off which transport produced a span.
-  MethodCall requestSpan() => callsTo(
-    'spanStart',
-  ).singleWhere((c) => argumentsOf(c)['kind'] == 'client');
+  MethodCall requestSpan() => callsTo('spanStart').singleWhere(
+    (c) => (argumentsOf(c)['attributes']! as Map<Object?, Object?>).containsKey(
+      'http.url',
+    ),
+  );
 
-  MethodCall requestTransaction() => callsTo(
-    'spanStart',
-  ).singleWhere((c) => argumentsOf(c)['kind'] == 'internal');
+  MethodCall requestTransaction() => callsTo('spanStart').singleWhere(
+    (c) => !(argumentsOf(c)['attributes']! as Map<Object?, Object?>)
+        .containsKey('http.url'),
+  );
 
   /// Attributes applied when the client span was created.
   Map<Object?, Object?> creationAttributes() =>
@@ -407,12 +410,12 @@ void main() {
       expect(intAttributes()['http.status_code'], 500);
       expect(callsTo('spanRecordException'), isEmpty);
       // Both spans: the request span and its Request Transaction (ADR-0016).
-      expect(callsTo('spanMarkFailed'), hasLength(2));
+      // The request span only: its Request Transaction carries no status, matching
+      // the parent the iOS Agent manufactures (ADR-0016).
+      expect(callsTo('spanMarkFailed'), hasLength(1));
       expect(
-        callsTo(
-          'spanMarkFailed',
-        ).map((c) => argumentsOf(c)['description']).toSet(),
-        {'HTTP 500'},
+        argumentsOf(callsTo('spanMarkFailed').single)['description'],
+        'HTTP 500',
       );
       expect(callsTo('spanEnd'), hasLength(2));
     });
@@ -438,10 +441,8 @@ void main() {
         'DioExceptionType.connectionTimeout',
       );
       expect(
-        callsTo(
-          'spanMarkFailed',
-        ).map((c) => argumentsOf(c)['description']).toSet(),
-        {'DioExceptionType.connectionTimeout'},
+        argumentsOf(callsTo('spanMarkFailed').single)['description'],
+        'DioExceptionType.connectionTimeout',
       );
       // No status code: nothing answered.
       expect(intAttributes().containsKey('http.status_code'), isFalse);
@@ -569,9 +570,12 @@ void main() {
       // layers would produce. Six spans in all, each request also starting its own
       // Request Transaction (ADR-0016); the marker de-duplicates requests, and a
       // request that was never traced twice cannot have two transactions either.
-      final requestSpans = callsTo(
-        'spanStart',
-      ).where((c) => argumentsOf(c)['kind'] == 'client').toList();
+      final requestSpans = callsTo('spanStart')
+          .where(
+            (c) => (argumentsOf(c)['attributes']! as Map<Object?, Object?>)
+                .containsKey('http.url'),
+          )
+          .toList();
 
       expect(requestSpans, hasLength(3));
       expect(callsTo('spanStart'), hasLength(6));

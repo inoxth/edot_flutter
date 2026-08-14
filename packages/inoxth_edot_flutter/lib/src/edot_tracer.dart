@@ -103,9 +103,87 @@ class EdotTracer {
       throw ArgumentError.value(name, 'name', 'span name must not be blank');
     }
 
-    final shadowId = newLocalId();
+    return _start(
+      name,
+      startedAt: _now(),
+      elapsed: _elapsed ?? _stopwatchElapsed(),
+      parent: parent ?? ambientParent,
+      kind: kind,
+      // Applied before the span starts, so sampling and processors see them.
+      // Attributes set afterwards would arrive too late for that.
+      attributes: {...activeViewAttributes(), ...attributes},
+    );
+  }
+
+  /// Starts the two spans a traced request produces: the client span, and the
+  /// Request Transaction it hangs under when nothing else would parent it
+  /// (ADR-0016).
+  ///
+  /// For the Plugin's own transports. An app nests its work with [startSpan] and
+  /// [runWithParent]; a request started inside the latter gets no transaction,
+  /// because the ambient span is one already.
+  ///
+  /// One wall-clock reading and one stopwatch serve both spans, so the pair carries
+  /// **identical** timestamps - which is what the iOS Agent's own manufactured
+  /// parent does, and the reason this is one call rather than two. Two independent
+  /// [startSpan] calls would each take their own reading and land microseconds
+  /// apart.
+  ///
+  /// The transaction is sent with no attributes at all. The Agent adds its own
+  /// (`session.id`, `type`) to every span, which is all the Agent's parent ever
+  /// carried; deliberately not the Active View's, so the pair matches it exactly.
+  /// Above all not `http.url`: the iOS Agent wraps any parentless span carrying
+  /// that key, so a transaction with it would be wrapped in turn and one request
+  /// would export three spans.
+  EdotRequestSpans startRequest(
+    String name, {
+    required Map<String, String> attributes,
+  }) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'span name must not be blank');
+    }
+
     final startedAt = _now();
-    final resolvedParent = parent ?? ambientParent;
+    final elapsed = _elapsed ?? _stopwatchElapsed();
+    final ambient = ambientParent;
+
+    final transaction = ambient == null
+        ? _start(
+            name,
+            startedAt: startedAt,
+            elapsed: elapsed,
+            parent: null,
+            kind: EdotSpanKind.client,
+            attributes: const {},
+          )
+        : null;
+
+    return EdotRequestSpans._(
+      _start(
+        name,
+        startedAt: startedAt,
+        elapsed: elapsed,
+        parent: transaction ?? ambient,
+        kind: EdotSpanKind.client,
+        attributes: {...activeViewAttributes(), ...attributes},
+      ),
+      transaction,
+    );
+  }
+
+  /// Registers one span with the Agent.
+  ///
+  /// Takes its start instant and its monotonic reader rather than reading either,
+  /// so a caller starting more than one span can give them the same timing.
+  EdotSpan _start(
+    String name, {
+    required DateTime startedAt,
+    required Duration Function() elapsed,
+    required EdotSpan? parent,
+    required EdotSpanKind kind,
+    required Map<String, String> attributes,
+  }) {
+    final shadowId = newLocalId();
 
     sendOneWay('spanStart', <String, Object?>{
       'shadowId': shadowId,
@@ -115,25 +193,49 @@ class EdotTracer {
       // Agent's registry, so the Agent logs it and starts a root instead —
       // ending a parent before its children is a caller bug, and silently
       // re-rooting it here would hide that rather than surface it.
-      'parentShadowId': resolvedParent?.shadowId,
+      'parentShadowId': parent?.shadowId,
       'kind': kind.name,
-      // Applied before the span starts, so sampling and processors see them.
-      // Attributes set afterwards would arrive too late for that.
-      'attributes': {...activeViewAttributes(), ...attributes},
+      'attributes': attributes,
     });
 
-    return EdotSpan._(
-      shadowId,
-      name,
-      startedAt,
-      _elapsed ?? _stopwatchElapsed(),
-    );
+    return EdotSpan._(shadowId, name, startedAt, elapsed);
   }
 
   /// A monotonic elapsed reader for one span.
   static Duration Function() _stopwatchElapsed() {
     final stopwatch = Stopwatch()..start();
     return () => stopwatch.elapsed;
+  }
+}
+
+/// The spans one traced request produces (ADR-0016).
+///
+/// A pair rather than two spans a transport ends separately, because the two must
+/// end at the *same* instant to match what the iOS Agent's manufactured parent does.
+/// Two `end()` calls would each take their own monotonic reading.
+///
+/// Not exported from the package's main library: `EdotRequestTrace` is the only
+/// caller.
+class EdotRequestSpans {
+  EdotRequestSpans._(this.request, this._transaction);
+
+  /// The client span carrying the request's attributes. Trace Context names this
+  /// one, and a failure is recorded on it.
+  final EdotSpan request;
+
+  /// The Request Transaction, or null when an ambient parent already provided one.
+  final EdotSpan? _transaction;
+
+  /// Ends both spans at one instant. Ignored if already called.
+  ///
+  /// The transaction is sent second so the Agent sees the child end first, but the
+  /// timestamp is the same one - the ordering is not a duration.
+  void end() {
+    if (request.isEnded) return;
+
+    final endedAt = request._startedAt.add(request._elapsed());
+    request._endAt(endedAt);
+    _transaction?._endAt(endedAt);
   }
 }
 
@@ -259,11 +361,13 @@ class EdotSpan {
   ///
   /// Calling this twice is ignored. A double-end is a caller bug, but throwing
   /// would turn it into a crash in the host app for a telemetry mistake.
-  void end() {
+  void end() => _endAt(_startedAt.add(_elapsed()));
+
+  /// Ends the span at [endedAt], for a caller that has already taken the reading -
+  /// [EdotRequestSpans] shares one between the two spans of a request.
+  void _endAt(DateTime endedAt) {
     if (_ended) return;
     _ended = true;
-
-    final endedAt = _startedAt.add(_elapsed());
 
     sendOneWay('spanEnd', <String, Object?>{
       'shadowId': shadowId,

@@ -376,11 +376,32 @@ void _assertRequestTransaction(CollectorOutput output) {
       'transaction rather than something the Agent wrapped in turn',
     );
 
-    if (parent.attributes.containsKey(urlAttribute)) {
-      _failures.add(
-        'the Request Transaction of $target carries $urlAttribute, which makes it '
-        'an HTTP span the iOS Agent will wrap in turn (ADR-0016)',
-      );
+    // Parity with what `ElasticSpanProcessor` manufactures for itself: same kind,
+    // and the child's exact timestamps rather than a window around them. Asserted
+    // on the wire because the two spans are minted from one clock reading in Dart -
+    // if that ever became two, only this would notice.
+    _expect(parent.kind, span.kind, 'the Request Transaction takes its kind');
+    _expect(
+      parent.startNanos,
+      span.startNanos,
+      'the Request Transaction of $target starts with it',
+    );
+    _expect(
+      parent.endNanos,
+      span.endNanos,
+      'the Request Transaction of $target ends with it',
+    );
+
+    // Carries nothing of the Plugin's own - the Agent's own additions (`session.id`,
+    // `type`) are all the Agent's parent ever had. `http.url` above all: it is what
+    // makes a parentless span one the iOS Agent wraps in turn (ADR-0016).
+    for (final key in [urlAttribute, targetAttribute, screenNameAttribute]) {
+      if (parent.attributes.containsKey(key)) {
+        _failures.add(
+          'the Request Transaction of $target carries $key, which the parent the '
+          'iOS Agent manufactures does not (ADR-0016)',
+        );
+      }
     }
 
     final inTrace = output.spans.where((s) => s.traceId == span.traceId).length;

@@ -60,19 +60,22 @@ void main() {
   List<MethodCall> callsTo(String method) =>
       calls.where((c) => c.method == method).toList();
 
-  /// One of the two spans a traced request starts, by kind.
-  ///
-  /// A request produces a Request Transaction and, beneath it, the client span
-  /// (ADR-0016). Selected by kind rather than by position, so a helper reading the
-  /// wrong one of the two fails here rather than asserting against the other span.
-  MethodCall spanStartOfKind(String kind) =>
-      callsTo('spanStart').singleWhere((c) => argumentsOf(c)['kind'] == kind);
+  Map<Object?, Object?> attributesOf(MethodCall call) =>
+      argumentsOf(call)['attributes']! as Map<Object?, Object?>;
 
-  /// The client span: the one carrying the request's attributes.
-  MethodCall requestSpan() => spanStartOfKind('client');
+  /// One of the two spans a traced request starts (ADR-0016).
+  ///
+  /// The pair deliberately matches the parent the iOS Agent manufactures, so name,
+  /// kind and both timestamps are identical and cannot tell them apart. The
+  /// attributes can: only the request carries them.
+  MethodCall requestSpan() => callsTo(
+    'spanStart',
+  ).singleWhere((c) => attributesOf(c).containsKey('http.url'));
 
   /// The Request Transaction the client span hangs under.
-  MethodCall requestTransaction() => spanStartOfKind('internal');
+  MethodCall requestTransaction() => callsTo(
+    'spanStart',
+  ).singleWhere((c) => !attributesOf(c).containsKey('http.url'));
 
   /// Attributes applied when the client span was created.
   Map<Object?, Object?> creationAttributes() =>
@@ -127,21 +130,35 @@ void main() {
       expect(argumentsOf(requestTransaction())['parentShadowId'], isNull);
     });
 
-    test('leaves the Request Transaction free of HTTP attributes', () async {
-      // Above all `http.url`: the iOS Agent wraps any parentless span carrying it,
-      // so a transaction with that key would itself be wrapped and one request would
-      // export three spans (ADR-0001).
+    test('matches what the iOS Agent manufactures for itself', () async {
+      // Deliberate parity with `ElasticSpanProcessor`, which copies its child's
+      // name, kind and both timestamps and carries nothing of its own (ADR-0016).
+      // Identical timestamps are why the pair is created in one call: two separate
+      // readings would land microseconds apart.
       await startPlugin();
+      Edot.setActiveView('Cart');
 
       await okClient().get(Uri.parse('https://api.example.com/orders'));
 
-      final attributes =
-          argumentsOf(requestTransaction())['attributes']!
-              as Map<Object?, Object?>;
+      final request = argumentsOf(requestSpan());
+      final transaction = argumentsOf(requestTransaction());
 
-      expect(attributes.keys, isNot(contains('http.url')));
-      expect(attributes.keys.where((k) => '$k'.startsWith('http.')), isEmpty);
-      expect(attributes.keys, isNot(contains('net.peer.name')));
+      expect(transaction['name'], request['name']);
+      expect(transaction['kind'], 'client');
+      expect(request['kind'], 'client');
+      expect(transaction['startUs'], request['startUs']);
+      expect(
+        attributesOf(requestTransaction()),
+        isEmpty,
+        reason:
+            'not even the Active View: the Agent adds session.id and type to '
+            'every span, and its own parent carries nothing else',
+      );
+
+      final ends = callsTo(
+        'spanEnd',
+      ).map((c) => argumentsOf(c)['endUs']).toSet();
+      expect(ends, hasLength(1), reason: 'both spans end at one instant');
     });
 
     test('is one span inside runWithParent, not two', () async {
@@ -250,9 +267,10 @@ void main() {
       await okClient(status: 500).get(Uri.parse('https://api.example.com/x'));
 
       expect(intAttributes(), containsPair('http.status_code', 500));
-      // Both spans: a transaction reporting success over an exit span that failed
-      // would make Kibana's error rate confidently wrong (ADR-0016).
-      expect(failureDescriptions(), ['HTTP 500', 'HTTP 500']);
+      // The request span only. Its Request Transaction carries no status, matching
+      // the parent the iOS Agent manufactures - so a transaction over a failed
+      // request reads as successful on both platforms (ADR-0016).
+      expect(failureDescriptions(), ['HTTP 500']);
       expect(
         callsTo('spanRecordException'),
         isEmpty,
@@ -265,7 +283,7 @@ void main() {
 
       await okClient(status: 404).get(Uri.parse('https://api.example.com/x'));
 
-      expect(failureDescriptions(), ['HTTP 404', 'HTTP 404']);
+      expect(failureDescriptions(), ['HTTP 404']);
     });
 
     test('leaves a 2xx and a 3xx unmarked', () async {
@@ -296,11 +314,9 @@ void main() {
         expect(
           argumentsOf(callsTo('spanRecordException').single)['type'],
           'TimeoutException',
-          reason:
-              'the event belongs to the request span alone, never duplicated '
-              'onto the Request Transaction',
+          reason: 'the event belongs to the request span, as the status does',
         );
-        expect(failureDescriptions(), ['TimeoutException', 'TimeoutException']);
+        expect(failureDescriptions(), ['TimeoutException']);
         expect(intAttributes(), isNot(contains('http.status_code')));
       },
     );

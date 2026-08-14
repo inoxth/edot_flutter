@@ -443,9 +443,14 @@ The pinned Agents predate these APIs, and raising the pins would raise the platf
   with no parent as a transaction, and a transaction has no destination - so a request traced as
   a root leaves nothing linking your app to the service it called, and it disappears from the
   service map and the Dependencies view. Each request therefore gets a **Request Transaction**
-  to belong to: same name and timing, no attributes of its own, failed when the request fails.
-  Making the request inside `Edot.tracer.runWithParent` produces one span instead, your own span
-  being the transaction already.
+  to belong to, copying what the iOS Agent manufactures for itself: same name, same kind, the
+  same timestamps, and no attributes of its own. Making the request inside
+  `Edot.tracer.runWithParent` produces one span instead, your own span being the transaction
+  already.
+- **A failed request leaves a successful transaction.** The failed status and the exception event
+  are on the request span; its Request Transaction carries neither, because the parent the iOS
+  Agent mints carries neither. So a service's **transaction** error rate does not count HTTP
+  failures - query the exit spans for those.
 - **Native-origin spans do not parent to Dart spans.** Anything the Agent instruments itself -
   lifecycle events, its own network instrumentation on iOS - starts its own trace. Correlate
   through `session.id` and the Active View attributes, not through trace structure.
