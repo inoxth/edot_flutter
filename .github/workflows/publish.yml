@@ -91,10 +91,11 @@ jobs:
 # `resolution: workspace`, and `dart pub get` from a member directory resolves
 # at the workspace root, so that part is fine - verified locally.
 #
-# What is NOT yet verified is whether `resolution: workspace` survives into the
-# published archive, or what it does to a consumer. Dart's workspace docs are
-# silent on it. DEV-1257 settles that with the first `--dry-run`, which cannot
-# run while `publish_to: none` stands.
+# `resolution: workspace` does survive into the published archive, and costs a
+# consumer nothing - settled by the 0.1.0-dev.1 publish (DEV-1257). A scratch
+# project depending on both packages resolves them `source: hosted` with the key
+# present in the downloaded pubspec. Dart's workspace docs are silent on this, so
+# it is recorded here rather than left to be rediscovered.
 #
 # It also provisions its own Flutter via flutter-actions/setup-flutter with no
 # version pinned, so the publish path does not run on the 3.44.0 that `verify`

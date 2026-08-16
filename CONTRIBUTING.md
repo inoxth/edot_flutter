@@ -159,16 +159,28 @@ Four edits, then a tag. To release `0.2.0`:
 ```bash
 dart run melos run verify        # the lockstep guard fails if step 2 was half-done
 
-# What verify cannot see. Both must report 160/160.
+# What verify cannot see. Must report 160/160.
 dart pub global activate pana    # once per machine
-pana packages/inoxth_edot_flutter
-pana packages/inoxth_edot_flutter_dio
+dart pub global run pana packages/inoxth_edot_flutter
 
 git add -A
 git commit -m "chore: release v0.2.0"
 git tag v0.2.0
 git push && git push --tags
 ```
+
+**Only the core package can be scored here.** pana resolves against pub.dev, not the
+workspace, and the Dio package's freshly bumped `inoxth_edot_flutter: ^0.2.0` matches nothing
+there until core is published - so scoring it now reports `50/160` and a version-solving
+failure, not a defect in the package. Score it *after* core is live:
+
+```bash
+dart pub global run pana packages/inoxth_edot_flutter_dio
+```
+
+Do not "fix" that failure by loosening the constraint. The release path already handles the
+ordering: `await-core` blocks the Dio publish until pub.dev serves the new core version, and
+only then does the Dio dry-run resolve.
 
 **Run pana, and do not skip it because `verify` is green.** The two look at different things:
 `verify` analyses the working tree, pana analyses the *extracted archive*. A defect that exists
