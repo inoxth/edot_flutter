@@ -199,9 +199,14 @@ immediately before the tag, is the last moment a deduction is still free to fix.
 Publish while the pushed tree still says the old version and that check fails - 10 points on both
 packages, permanently, for the version people actually install.
 
-The tag is what publishes. `verify` gates the pipeline, one reviewer approves the `pub.dev`
+The tag is what publishes. `verify` gates the pipeline, a reviewer approves the `pub.dev`
 environment, then the core package publishes and the Dio package follows - it has to wait, because
 its constraint cannot resolve until core is live on pub.dev.
+
+**Expect to approve twice, not once.** Each publish job declares `environment: pub.dev`, so each
+creates its own deployment and each waits for a reviewer - once before core, and again before Dio.
+Approving the first and walking away leaves the release half-published: core live, Dio not, and
+nothing on pub.dev saying so. Stay with the run until both are green.
 
 **A published version cannot be deleted or overwritten.** pub.dev allows retraction and nothing
 more, so treat the tag push as final. If you are unsure about an artefact, publish a prerelease

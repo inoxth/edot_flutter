@@ -242,7 +242,13 @@ await Isolate.spawn(worker, message, onError: Edot.isolateErrorPort);
 To also record errors thrown while a widget subtree builds, wrap it:
 
 ```dart
-EdotErrorBoundary(child: MyRiskyWidget())
+EdotErrorBoundary(
+  // Shown in place of the subtree that failed. Required: the boundary replaces
+  // Flutter's error widget while it is mounted, so it has to be given something
+  // to put there.
+  fallback: (error) => const Text('Something went wrong'),
+  child: MyRiskyWidget(),
+)
 ```
 
 The boundary claims Flutter's error-widget hook only while it is mounted, so an app without one
