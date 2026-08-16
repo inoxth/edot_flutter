@@ -54,8 +54,10 @@ telemetry pipeline and every integration in place.
 Second prerelease of 0.1.0, and the first version published by the release
 pipeline rather than by hand. It exists to prove that path - a tag triggering
 the verify gate, an approval, then both packages published in order - on a
-version nobody installs, before 0.1.0 goes out the same way. Identical in
-content to 0.1.0 above.
+version nobody installs, before 0.1.0 goes out the same way. Identical to 0.1.0
+above but for one correction: this version's README showed `EdotErrorBoundary`
+without its required `fallback`, an example that does not compile. Building a
+consumer app against this prerelease is what caught it.
 
 ## 0.1.0-dev.1
 

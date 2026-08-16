@@ -2,7 +2,7 @@ name: inoxth_edot_flutter_dio
 description: >-
   Dio integration for inoxth_edot_flutter. Traces every request a Dio instance
   makes as a client span, tagged with the screen it came from.
-version: 0.1.0-dev.2
+version: 0.1.0
 repository: https://github.com/inoxth/edot_flutter
 issue_tracker: https://github.com/inoxth/edot_flutter/issues
 
@@ -16,7 +16,7 @@ dependencies:
   dio: ^5.4.0
   flutter:
     sdk: flutter
-  inoxth_edot_flutter: ^0.1.0-dev.2
+  inoxth_edot_flutter: ^0.1.0
 
 dev_dependencies:
   flutter_lints: ^6.0.0

@@ -1,7 +1,7 @@
 name: inoxth_edot_flutter
 description: >-
   Flutter plugin for the Elastic Distribution of OpenTelemetry (EDOT) mobile Agents.
-version: 0.1.0-dev.2
+version: 0.1.0
 repository: https://github.com/inoxth/edot_flutter
 issue_tracker: https://github.com/inoxth/edot_flutter/issues
 
