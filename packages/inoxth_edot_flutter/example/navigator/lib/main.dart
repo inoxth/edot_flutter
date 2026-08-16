@@ -5,18 +5,18 @@ import 'package:inoxth_edot_flutter_example_shared/inoxth_edot_flutter_example_s
 /// The `Navigator` flavor of the inoxth_edot_flutter example.
 ///
 /// Everything the app shows lives in the shared package; this file is only the
-/// integration recipe: load `.env`, start the Agent, and wire Flutter's built-in
+/// integration recipe: load `env/local.env`, start the Agent, and wire Flutter's built-in
 /// `Navigator` to the Plugin. The go_router flavor differs from this file alone.
 ///
-/// Configuration comes from this flavor's `.env`. Copy `.env.example` to `.env` and
+/// Configuration comes from this flavor's `env/local.env`. Copy `env/local.env.example` to it and
 /// point `EDOT_SERVER_URL` at your collector; on an Android emulator that is usually
-/// `http://10.0.2.2:4318`. With no server URL the app shows a "Missing .env" screen
+/// `http://10.0.2.2:4318`. With no server URL the app shows its "configuration needed" screen
 /// instead of starting the Agent.
 Future<void> main() async {
   // dotenv reads the app's asset bundle, so the binding has to exist first.
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Built from `.env` at the edge; the mapping and the missing-config guard are proven in
+  // Built from `env/local.env` at the edge; the mapping and the missing-config guard are proven in
   // the shared package's Seam 1 tests. Telemetry produced before `Edot.start` is held and
   // replayed rather than lost, so starting once config is known loses nothing.
   final result = await loadDemoConfig(

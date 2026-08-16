@@ -44,5 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Local telemetry configuration - copy .env.example to .env; never commit real values.
-/.env
+# Local telemetry configuration - copy env/local.env.example to env/local.env;
+# never commit real values. The directory itself is tracked, because the app
+# declares it as an asset and a fresh clone must still analyze and build.
+/env/local.env

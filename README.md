@@ -110,7 +110,7 @@ Three example apps live under
 `navigator`, and `go_router` - each integrating the plugin with a different navigation approach and
 sharing the same demo screens. The
 [example index](packages/inoxth_edot_flutter/example/README.md) helps you pick one and covers the
-common `.env` setup. Between them they exercise every feature: manual spans, logs and metrics, all
+common env-file setup. Between them they exercise every feature: manual spans, logs and metrics, all
 three network paths, error capture and the boundary, navigation and tab tracking, the consent
 states, and the Session identifier.
 

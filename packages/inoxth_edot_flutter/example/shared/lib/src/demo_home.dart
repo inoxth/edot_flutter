@@ -200,7 +200,7 @@ class _SettingsTabState extends State<_SettingsTab> {
     final config = widget.config;
     return DemoActionList(
       children: [
-        const DemoNote('Values the app started with, read from .env.'),
+        const DemoNote('Values the app started with, read from env/local.env.'),
         _ConfigRow('Service name', config.serviceName),
         _ConfigRow('Service version', config.serviceVersion),
         _ConfigRow('Environment', config.deploymentEnvironment),

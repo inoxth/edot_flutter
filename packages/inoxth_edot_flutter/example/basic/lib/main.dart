@@ -5,8 +5,8 @@ import 'package:inoxth_edot_flutter_example_shared/inoxth_edot_flutter_example_s
 /// The `basic` flavor: the smallest inoxth_edot_flutter integration.
 ///
 /// One scrollable screen, no navigation and no network - just `Edot.start` from
-/// `.env` and a handful of signals. See the navigator and go_router flavors for
-/// screen tracking and request tracing. Copy `.env.example` to `.env` first.
+/// `env/local.env` and a handful of signals. See the navigator and go_router flavors for
+/// screen tracking and request tracing. Copy `env/local.env.example` to `env/local.env` first.
 Future<void> main() async {
   // dotenv reads the app's asset bundle, so the binding has to exist first.
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +72,7 @@ class _BasicHomeState extends State<_BasicHome> {
     title: 'EDOT basic example',
     children: [
       const DemoNote(
-        'The smallest integration: Edot.start from .env, then a few signals. No '
+        'The smallest integration: Edot.start from env/local.env, then a few signals. No '
         'navigation and no network - the navigator and go_router flavors cover those.',
       ),
       DemoActionTile(

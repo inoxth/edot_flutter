@@ -15,9 +15,9 @@ lands the Active View back on the tab you were on, exactly as in the navigator f
 ## Run
 
 ```bash
-cp .env.example .env        # then point EDOT_SERVER_URL at your collector
+cp env/local.env.example env/local.env   # then point EDOT_SERVER_URL at your collector
 flutter run
 ```
 
-With no `EDOT_SERVER_URL` the app shows a "Missing .env" screen instead of starting
+With no `EDOT_SERVER_URL` the app shows its "configuration needed" screen instead of starting
 the Agent.

@@ -12,7 +12,7 @@ in-page view tracking via `EdotViewObserver` (the Home / Demos / Settings bottom
 In-page views screen's own `TabController`), a parameterised `/orders/<id>` route that shows
 Screen Name normalization, the Tracking Consent states, and the Session identifier. The
 Settings tab echoes the config the app started with, including the OTLP transport and session
-sampling rate read from `.env`.
+sampling rate read from `env/local.env`.
 
 This flavor is also the home of the **Seam 2** integration tests (`tool/verify_*.dart`); see
 [`CONTRIBUTING.md`](../../../../CONTRIBUTING.md) for how to run them.
@@ -20,11 +20,11 @@ This flavor is also the home of the **Seam 2** integration tests (`tool/verify_*
 ## Run
 
 ```bash
-cp .env.example .env        # then point EDOT_SERVER_URL at your collector
+cp env/local.env.example env/local.env   # then point EDOT_SERVER_URL at your collector
 flutter run
 ```
 
-With no `EDOT_SERVER_URL` the app shows a "Missing .env" screen instead of starting the Agent.
-Beyond the server URL, `.env` also sets the identity fields, auth, the OTLP transport
+With no `EDOT_SERVER_URL` the app shows its "configuration needed" screen instead of starting the Agent.
+Beyond the server URL, `env/local.env` also sets the identity fields, auth, the OTLP transport
 (`EDOT_EXPORT_PROTOCOL`) and the session sampling rate (`EDOT_SESSION_SAMPLING_RATE`) - see
-`.env.example`.
+`env/local.env.example`.

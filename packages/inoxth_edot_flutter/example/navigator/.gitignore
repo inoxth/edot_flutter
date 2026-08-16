@@ -23,9 +23,11 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
-# Local telemetry configuration. Copy .env.example to .env; never commit real
-# collector URLs or secret tokens.
-/.env
+# Local telemetry configuration. Copy env/local.env.example to env/local.env;
+# never commit real collector URLs or secret tokens. The directory itself is
+# tracked, because the app declares it as an asset and a fresh clone must still
+# analyze and build.
+/env/local.env
 
 # Flutter/Dart/Pub related
 **/doc/api/

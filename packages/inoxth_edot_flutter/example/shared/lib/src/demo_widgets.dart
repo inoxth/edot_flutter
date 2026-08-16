@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-/// Shown when `.env` carries no `EDOT_SERVER_URL`, so the Agent is never started.
+/// Shown when the env file carries no `EDOT_SERVER_URL`, so the Agent is never started.
 ///
 /// Every flavor app falls back to this when [loadDemoConfig] reports missing config.
 class MissingEnvApp extends StatelessWidget {

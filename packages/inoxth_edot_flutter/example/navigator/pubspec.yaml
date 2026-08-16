@@ -35,7 +35,7 @@ dependencies:
   inoxth_edot_flutter_dio:
     path: ../../../inoxth_edot_flutter_dio
 
-  # Shared demo code across the flavor apps: the .env -> config loader (DemoConfig)
+  # Shared demo code across the flavor apps: the env file -> config loader (DemoConfig)
   # this flavor's main() uses, and the demo screens a later slice moves in.
   inoxth_edot_flutter_example_shared:
     path: ../shared
@@ -78,10 +78,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # The .env this flavor reads its configuration from (see lib/main.dart).
-  # Bundled as an asset so flutter_dotenv can load it from the app bundle.
+  # Where this flavor reads its configuration from (see lib/main.dart). The
+  # directory is declared rather than the file, because the file itself is
+  # gitignored: a fresh clone must still analyze and build, and it does when the
+  # declared asset is a directory that always exists. The app then finds no
+  # config at runtime and shows its missing-config screen, which is the intent.
+  #
+  # The file must not begin with a dot. Flutter's directory-asset globbing skips
+  # dotfiles, so `env/.env` would build fine and bundle nothing.
   assets:
-    - .env
+    - env/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

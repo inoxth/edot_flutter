@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 import 'package:inoxth_edot_flutter_example_shared/inoxth_edot_flutter_example_shared.dart';
 
-/// Seam 1 for the shared `.env` -> config transform.
+/// Seam 1 for the shared env-file -> config transform.
 ///
 /// `DemoConfig.fromEnv` is the one piece of demo logic worth proving hermetically:
 /// every flavor app builds its `EdotConfig` through it, so the mapping, the
@@ -17,7 +17,7 @@ void main() {
     'EDOT_SECRET_TOKEN': 'super-secret',
   };
 
-  test('maps every .env field onto the EdotConfig', () {
+  test('maps every env-file field onto the EdotConfig', () {
     final result = DemoConfig.fromEnv(fullEnv());
 
     expect(result, isA<DemoConfigReady>());

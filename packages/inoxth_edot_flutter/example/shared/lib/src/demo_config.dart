@@ -1,18 +1,18 @@
 import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
 
-/// The outcome of turning a loaded `.env` map into telemetry configuration.
+/// The outcome of turning a loaded env-file map into telemetry configuration.
 sealed class DemoConfigResult {
   const DemoConfigResult();
 }
 
-/// The `.env` supplied everything required; [config] is ready for `Edot.start`.
+/// The env file supplied everything required; [config] is ready for `Edot.start`.
 class DemoConfigReady extends DemoConfigResult {
   const DemoConfigReady(this.config);
 
   final EdotConfig config;
 }
 
-/// The `.env` was absent or carried no server URL; nothing should start.
+/// The env file was absent or carried no server URL; nothing should start.
 ///
 /// [reason] is a short, human-readable explanation the app can show instead of
 /// starting the Agent.
@@ -22,12 +22,12 @@ class DemoConfigMissing extends DemoConfigResult {
   final String reason;
 }
 
-/// Builds a demo [EdotConfig] from a loaded `.env` map.
+/// Builds a demo [EdotConfig] from a loaded env-file map.
 ///
 /// Pure by design: it takes the already-loaded map, never the file system, so it
 /// is provable at Seam 1. `EDOT_SERVER_URL` is the only required key - the rest
 /// fall back to demo defaults - because it is the one value that must point at a
-/// collector for anything to be worth starting. Behaviour flags the `.env` does
+/// collector for anything to be worth starting. Behaviour flags the env file does
 /// not cover (debug, app-wide tracing, the starting consent) are supplied by the
 /// caller.
 abstract final class DemoConfig {
@@ -53,7 +53,8 @@ abstract final class DemoConfig {
     final serverUrl = env['EDOT_SERVER_URL']?.trim() ?? '';
     if (serverUrl.isEmpty) {
       return const DemoConfigMissing(
-        'EDOT_SERVER_URL is not set. Copy .env.example to .env and fill it in.',
+        'EDOT_SERVER_URL is not set. Copy env/local.env.example to '
+        'env/local.env and fill it in.',
       );
     }
 

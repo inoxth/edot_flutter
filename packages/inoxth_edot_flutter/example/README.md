@@ -72,7 +72,7 @@ package, so the only real difference between them is how each wires `EdotNavigat
 
 | Flavor | Navigation | What to copy from it |
 |---|---|---|
-| [`basic`](basic) | None - one screen | The smallest integration: start the Agent from `.env`, then emit a span, a metric, a log, a reported error, and read the Session identifier. No navigation, no network. |
+| [`basic`](basic) | None - one screen | The smallest integration: start the Agent from `env/local.env`, then emit a span, a metric, a log, a reported error, and read the Session identifier. No navigation, no network. |
 | [`navigator`](navigator) | Flutter `Navigator` (named routes) | The reference flavor. Home / Demos / Settings, a screen per telemetry area (logs at every severity, all three network paths, an interaction span, an in-page views screen tracked by `EdotViewObserver`, more), a parametric route that normalizes its Screen Name, and `EdotNavigatorObserver` on `MaterialApp.navigatorObservers`. Also hosts the Seam 2 tests. |
 | [`go_router`](go_router) | [`go_router`](https://pub.dev/packages/go_router) | The same demo routed with `go_router` - `EdotNavigatorObserver` via `GoRouter.observers`, `context.push` to open a screen. |
 
@@ -86,18 +86,25 @@ pub.dev they are worked examples to read.
 
 ## Common setup
 
-Every flavor reads its configuration from a `.env` file (via `flutter_dotenv`). Copy the template,
-point it at your collector, and run:
+Every flavor reads its configuration from `env/local.env` (via `flutter_dotenv`). Copy the
+template, point it at your collector, and run:
 
 ```bash
 cd basic            # or navigator, or go_router
-cp .env.example .env
+cp env/local.env.example env/local.env
 flutter run
 ```
 
-Set `EDOT_SERVER_URL` in `.env` to your collector's OTLP/HTTP endpoint. On an Android emulator the
-collector on your host machine is usually `http://10.0.2.2:4318`. With no `EDOT_SERVER_URL` set, an
-app shows a "Missing .env" screen instead of starting the Agent, so a fresh clone runs without
-configuration. Beyond the server URL and identity fields, `.env` can also set the OTLP transport
-(`EDOT_EXPORT_PROTOCOL`, `http` or `grpc`) and the session sampling rate
-(`EDOT_SESSION_SAMPLING_RATE`, 0.0-1.0). See each flavor's `.env.example` for the full set of keys.
+**A fresh clone builds and runs without this step.** Each flavor declares the `env/` directory as
+an asset rather than the file, so nothing is missing before you copy anything - the app simply
+finds no configuration and shows its "configuration needed" screen instead of starting the Agent.
+Copy the template when you want it to actually export.
+
+Set `EDOT_SERVER_URL` in `env/local.env` to your collector's OTLP/HTTP endpoint. On an Android
+emulator the collector on your host machine is usually `http://10.0.2.2:4318`. Beyond the server
+URL and identity fields, the file can also set the OTLP transport (`EDOT_EXPORT_PROTOCOL`, `http`
+or `grpc`) and the session sampling rate (`EDOT_SESSION_SAMPLING_RATE`, 0.0-1.0). See each
+flavor's `env/local.env.example` for the full set of keys.
+
+`env/local.env` is gitignored; `env/local.env.example` is tracked. Point the former at a real
+collector without worrying about committing it.

@@ -38,17 +38,4 @@ jobs:
       # rather than a global, so this is also what makes `dart run melos` work.
       - run: flutter pub get
 
-      # Every example flavor declares `.env` as a bundled asset but gitignores
-      # the file itself, so a fresh checkout has none - and `--fatal-infos`
-      # promotes the resulting asset_does_not_exist warning to a failure. The
-      # tracked `.env.example` values only need to exist for analysis; no job
-      # here ever starts an app, so nothing is exported.
-      - name: Seed the example .env files
-        run: |
-          for dir in packages/inoxth_edot_flutter/example/*/; do
-            if [ -f "${dir}.env.example" ]; then
-              cp "${dir}.env.example" "${dir}.env"
-            fi
-          done
-
       - run: dart run melos run verify

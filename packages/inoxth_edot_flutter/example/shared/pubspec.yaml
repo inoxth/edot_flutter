@@ -16,7 +16,7 @@ dependencies:
   inoxth_edot_flutter:
     path: ../../
 
-  # Loads each flavor app's `.env` at the edge. DemoConfig itself stays a pure
+  # Loads each flavor app's env file at the edge. DemoConfig itself stays a pure
   # Map -> config transform; only `loadDemoConfig` touches the file system.
   flutter_dotenv: ^6.0.1
 
