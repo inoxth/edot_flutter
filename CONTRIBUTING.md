@@ -154,15 +154,38 @@ Four edits, then a tag. To release `0.2.0`:
 2. `packages/inoxth_edot_flutter_dio/pubspec.yaml` - `version: 0.2.0` **and**
    `inoxth_edot_flutter: ^0.2.0`
 3. Write both `CHANGELOG.md` entries by hand, in the prose style already there.
-4. Verify, commit, tag:
+4. Verify, score, commit, tag:
 
 ```bash
 dart run melos run verify        # the lockstep guard fails if step 2 was half-done
+
+# What verify cannot see. Both must report 160/160.
+dart pub global activate pana    # once per machine
+pana packages/inoxth_edot_flutter
+pana packages/inoxth_edot_flutter_dio
+
 git add -A
 git commit -m "chore: release v0.2.0"
 git tag v0.2.0
 git push && git push --tags
 ```
+
+**Run pana, and do not skip it because `verify` is green.** The two look at different things:
+`verify` analyses the working tree, pana analyses the *extracted archive*. A defect that exists
+only once the package is unpacked - a path that escapes the package root, a file the tarball does
+not carry - is invisible to `verify` by construction. That is not hypothetical: every shipped
+`analysis_options.yaml` once inherited the repo-wide config by relative path, which resolves in a
+clone and dangles in the archive, crashing `dart format` and costing 10 points. `verify` was green
+throughout.
+
+pana is deliberately not in CI. Its score moves with dependency freshness, SDK releases and pana's
+own version, so a threshold gate on every push would fail for reasons unrelated to the change. Here,
+immediately before the tag, is the last moment a deduction is still free to fix.
+
+**Push before you publish**, which the ordering above already does. pub.dev verifies the
+`repository` URL by finding a pubspec there whose name *and version* match what is being published.
+Publish while the pushed tree still says the old version and that check fails - 10 points on both
+packages, permanently, for the version people actually install.
 
 The tag is what publishes. `verify` gates the pipeline, one reviewer approves the `pub.dev`
 environment, then the core package publishes and the Dio package follows - it has to wait, because
