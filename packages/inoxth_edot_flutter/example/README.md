@@ -1,9 +1,74 @@
 # inoxth_edot_flutter examples
 
-Three example apps, each a complete Flutter app that integrates the plugin a different way.
-Pick the one whose navigation matches your app - they share the same demo screens through the
-`shared` package, so the only real difference between them is how each wires
-`EdotNavigatorObserver`.
+Two steps: start the plugin, then hand `MaterialApp` the observer. Everything after that -
+spans, logs, metrics, traced requests - is tagged with the screen it came from without any
+further wiring.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:inoxth_edot_flutter/inoxth_edot_flutter.dart';
+
+// Wraps the client the app already uses; a plain one here.
+final client = EdotHttpClient(http.Client());
+
+Future<void> main() async {
+  await Edot.start(
+    EdotConfig(
+      serviceName: 'my-app',
+      serviceVersion: '1.0.0',
+      deploymentEnvironment: 'development',
+      serverUrl: 'http://localhost:4318',
+      // Every request through the client above is traced. This decides which of
+      // them also carry W3C Trace Context, so the service on the other end can
+      // join the trace.
+      tracePropagationTargets: [RegExp(r'^https://api\.example\.com')],
+    ),
+  );
+
+  runApp(const ExampleApp());
+}
+
+class ExampleApp extends StatelessWidget {
+  const ExampleApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      // Screen Spans, and the screen attributes every other signal is tagged
+      // with, come from this observer.
+      navigatorObservers: [EdotNavigatorObserver()],
+      home: Scaffold(
+        body: Center(
+          child: ElevatedButton(
+            onPressed: () async {
+              Edot.log(EdotSeverity.info, 'Order list opened');
+              await client.get(Uri.https('api.example.com', '/orders'));
+            },
+            child: const Text('Send a traced request'),
+          ),
+        ),
+      ),
+    );
+  }
+}
+```
+
+That button produces a log record and one client span named `GET`, both carrying the Elastic
+Mobile Attribute Set and the attributes of whichever screen was visible at the time.
+
+**`package:http` is your dependency.** `EdotHttpClient` wraps an `http.Client`, so add `http`
+to your own `pubspec.yaml` to construct one. If the app uses Dio instead, add
+[`inoxth_edot_flutter_dio`](https://pub.dev/packages/inoxth_edot_flutter_dio) and skip this.
+
+**Nothing emitted before `Edot.start` is lost.** It is held in a bounded queue and replayed
+once the Agent is up, so instrumentation does not have to wait for startup to finish.
+
+## The example apps
+
+Three of them, each a complete Flutter app that integrates the plugin a different way. Pick the
+one whose navigation matches your app - they share the same demo screens through the `shared`
+package, so the only real difference between them is how each wires `EdotNavigatorObserver`.
 
 | Flavor | Navigation | What to copy from it |
 |---|---|---|
