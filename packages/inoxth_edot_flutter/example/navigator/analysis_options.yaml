@@ -1,12 +1,30 @@
-# Inherits the repo-wide config so the example is held to the same strict
-# language modes and lints as the package it demonstrates — an example that
-# would not pass the package's own analysis is a poor example.
-include: ../../../../analysis_options.yaml
+# Holds this demo app to the same strict language modes and lints as the package
+# it demonstrates - an example that would not pass the package's own analysis is
+# a poor example.
+#
+# Deliberately self-contained. It must not `include:` a path outside the package
+# root, because this file ships inside the plugin's published archive where the
+# repository root does not exist. A relative escape leaves a dangling include
+# that crashes `dart format` during analysis and costs pana points.
+#
+# Keep in step with the repo-wide `analysis_options.yaml`.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
 
 linter:
   rules:
-    # The example is a demo app, not a published library: its widgets and State
-    # classes are not an API anyone documents. Off here only (it would otherwise
-    # raise 5 findings), so the rule keeps its teeth on the packages that do
-    # have a public surface.
-    public_member_api_docs: false
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - prefer_final_locals
+    - require_trailing_commas
+    - unawaited_futures
+    - use_super_parameters
+    # public_member_api_docs is deliberately absent, where the repo-wide config
+    # enables it: a demo app's widgets and State classes are not an API anyone
+    # documents. The rule keeps its teeth on the packages that do have a public
+    # surface.

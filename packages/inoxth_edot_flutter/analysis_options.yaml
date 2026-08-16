@@ -1,6 +1,36 @@
 # The analyzer resolves the nearest options file, so this one governs the
-# package. It exists only to pull in the repo-wide config — strict language
-# modes, the extra lints, and public_member_api_docs — which a bare
-# `flutter_lints` include (the Flutter template default) would otherwise shadow.
-# No deviations: this is the package the strict settings are for.
-include: ../../analysis_options.yaml
+# package. It carries the repo-wide config - strict language modes, the extra
+# lints, and public_member_api_docs - which a bare `flutter_lints` include (the
+# Flutter template default) would otherwise shadow. No deviations: this is the
+# package the strict settings are for.
+#
+# Deliberately self-contained. It must not `include:` a path outside the package
+# root, because this file ships inside the published archive where the
+# repository root does not exist. A relative escape leaves a dangling include
+# that crashes `dart format` during analysis and costs 10 pana points.
+#
+# Keep in step with the repo-wide `analysis_options.yaml`.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  errors:
+    # `linter.rules` below switches the lint ON; this re-grades it from its
+    # default `info` to `warning`, because an undocumented public API on a
+    # package others depend on is a defect, not a style preference. Both entries
+    # are needed: a rule absent from `linter.rules` is inert no matter what
+    # `errors:` says about it.
+    public_member_api_docs: warning
+
+linter:
+  rules:
+    - always_declare_return_types
+    - avoid_dynamic_calls
+    - prefer_final_locals
+    - public_member_api_docs
+    - require_trailing_commas
+    - unawaited_futures
+    - use_super_parameters
