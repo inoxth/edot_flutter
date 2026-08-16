@@ -1,11 +1,3 @@
-## 0.1.0-dev.1
-
-Prerelease of 0.1.0, cut to exercise publication itself rather than to ship
-anything new. It proves the archive, the pub.dev listing, and that the Dio
-package resolves against a hosted core rather than a workspace sibling.
-Identical in content to 0.1.0 below. Prereleases are not served as the latest
-stable, so `flutter pub add inoxth_edot_flutter` is unaffected by this version.
-
 ## 0.1.0
 
 First release. A Flutter plugin wrapping the pinned EDOT mobile Agents, with the
@@ -56,3 +48,19 @@ telemetry pipeline and every integration in place.
   in a bounded buffer rather than lost (ADR-0015, ADR-0005).
 * Emitted wire names align with this organisation's React Native SDK, so one Kibana
   dashboard serves both fleets (ADR-0003).
+
+## 0.1.0-dev.2
+
+Second prerelease of 0.1.0, and the first version published by the release
+pipeline rather than by hand. It exists to prove that path - a tag triggering
+the verify gate, an approval, then both packages published in order - on a
+version nobody installs, before 0.1.0 goes out the same way. Identical in
+content to 0.1.0 above.
+
+## 0.1.0-dev.1
+
+Prerelease of 0.1.0, cut to exercise publication itself rather than to ship
+anything new. It proved the archive, the pub.dev listing, and that the Dio
+package resolves against a hosted core rather than a workspace sibling.
+Identical in content to 0.1.0 above. Prereleases are not served as the latest
+stable, so `flutter pub add inoxth_edot_flutter` was unaffected by this version.

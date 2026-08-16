@@ -1,10 +1,3 @@
-## 0.1.0-dev.1
-
-Prerelease of 0.1.0, cut alongside `inoxth_edot_flutter` 0.1.0-dev.1 to exercise
-publication itself. This is the half that matters: it is the first time this
-package resolves its plugin dependency from pub.dev instead of from the local
-workspace. Identical in content to 0.1.0 below.
-
 ## 0.1.0
 
 First release. Dio integration for `inoxth_edot_flutter`.
@@ -21,3 +14,18 @@ First release. Dio integration for `inoxth_edot_flutter`.
   would impose Dio's version constraint on every consumer (ADR-0010).
 * Platform floors and pins inherited from `inoxth_edot_flutter` 0.1.0: iOS 15.6,
   Android API 24, Flutter 3.44, Dio ^5.4.0.
+
+## 0.1.0-dev.2
+
+Second prerelease of 0.1.0, cut alongside `inoxth_edot_flutter` 0.1.0-dev.2 to
+prove the release pipeline before 0.1.0 goes through it. This is the half that
+tests the ordering: the pipeline must wait for the core version to be live on
+pub.dev before this package's constraint can resolve. Identical in content to
+0.1.0 above.
+
+## 0.1.0-dev.1
+
+Prerelease of 0.1.0, cut alongside `inoxth_edot_flutter` 0.1.0-dev.1 to exercise
+publication itself. This was the half that mattered: the first time this package
+resolved its plugin dependency from pub.dev instead of from the local workspace.
+Identical in content to 0.1.0 above.
