@@ -84,6 +84,79 @@ jobs:
       working-directory: packages/inoxth_edot_flutter_dio
       environment: pub.dev
 
+  # One GitHub release per version tag, bodied from the CHANGELOG prose rather
+  # than from generated commit notes - the entries are written for readers and
+  # reference the ADRs, which a commit list would replace with nothing useful.
+  #
+  # `needs` is the gate, not decoration: a job runs only when everything it
+  # needs succeeded, so a run where core published and Dio did not creates no
+  # release. Announcing a version that is only half on pub.dev would hide
+  # exactly the failure the ordering and the two approvals exist to expose.
+  #
+  # Its own job for the same reason `await-core` is one: a job that calls a
+  # reusable workflow cannot also run steps.
+  release:
+    needs: [publish-core, publish-dio]
+    runs-on: ubuntu-latest
+    permissions:
+      # Not inherited - the publish jobs grant `id-token` for OIDC and nothing
+      # else. Creating a release writes to the repository.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+
+          # The `$0 == want` comparison is the whole point: it matches the
+          # entire heading line. A prefix match (`/^## 0\.1\.0/`) finds
+          # `## 0.1.0-dev.2` when asked for `0.1.0`, and `## 0.1.1` when asked
+          # for `0.1.10` - shipping the wrong notes without ever failing.
+          section() {
+            awk -v want="## $2" '
+              $0 == want { found = 1; next }
+              found && /^## / { exit }
+              found { print }
+            ' "$1"
+          }
+
+          core=$(section packages/inoxth_edot_flutter/CHANGELOG.md "$version")
+          dio=$(section packages/inoxth_edot_flutter_dio/CHANGELOG.md "$version")
+
+          # Both packages carry an entry for every released version, so a
+          # missing one means the release was cut wrong. Fail rather than
+          # publish an empty release nobody can correct afterwards.
+          if [ -z "${core//[[:space:]]/}" ] || [ -z "${dio//[[:space:]]/}" ]; then
+            echo "::error::No CHANGELOG section for ${version} in one or both packages."
+            exit 1
+          fi
+
+          {
+            printf '## inoxth_edot_flutter\n'
+            printf '%s\n' "$core"
+            printf '## inoxth_edot_flutter_dio\n'
+            printf '%s\n' "$dio"
+          } > "$RUNNER_TEMP/notes.md"
+
+          # A semver prerelease suffix is the only thing separating 0.1.0-dev.2
+          # from 0.1.0. pub.dev already declines to serve it as latest stable;
+          # an unmarked release would contradict that by showing as Latest.
+          args=(--title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md")
+          case "$version" in *-*) args+=(--prerelease) ;; esac
+
+          # Idempotent: a re-run of a released tag leaves the existing release
+          # alone rather than failing the workflow or creating a second one.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; leaving it alone."
+            exit 0
+          fi
+
+          gh release create "$GITHUB_REF_NAME" "${args[@]}"
+
 # Note on the reusable workflow, which is dart-lang's own:
 #
 # It runs `dart pub get` and `dart pub publish --dry-run` inside

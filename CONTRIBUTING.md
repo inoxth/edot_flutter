@@ -208,6 +208,21 @@ creates its own deployment and each waits for a reviewer - once before core, and
 Approving the first and walking away leaves the release half-published: core live, Dio not, and
 nothing on pub.dev saying so. Stay with the run until both are green.
 
+Once both have published, the run creates a **GitHub release** for the tag. Its body is the
+CHANGELOG section for that version from both packages, which is the practical reason step 3 above
+matters: whatever you write there is what the release page says. A version whose number carries a
+prerelease suffix is marked as a prerelease, so it never shows as *Latest*. Nothing to do by hand.
+
+If the `release` job fails, the usual cause is a missing CHANGELOG entry for that version in one of
+the two packages. The job checks for one and stops rather than publishing an empty release page.
+Both packages are already on pub.dev by then, and the release is the only thing missing - so fix
+the entry and create the release by hand (`gh release create`), rather than cutting a new version.
+Re-running the job will not help: it checks out the tag, where the CHANGELOG is still as it was.
+
+Because those entries become the release notes, **write them to stand on their own.** A phrase like
+"identical to the version above" reads fine in a CHANGELOG and means nothing on a release page,
+where the section appears by itself.
+
 **A published version cannot be deleted or overwritten.** pub.dev allows retraction and nothing
 more, so treat the tag push as final. If you are unsure about an artefact, publish a prerelease
 (`0.2.0-dev.1`) first: prereleases do not become the latest stable, so nobody installs one by
